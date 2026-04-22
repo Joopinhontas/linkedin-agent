@@ -26,7 +26,7 @@ No database, no UI, no queue. Just a Python script.
 ### 1. Clone and install
 
 ```bash
-git clone https://github.com/yourusername/linkedin-agent.git
+git clone https://github.com/joopinhontas/linkedin-agent.git
 cd linkedin-agent
 pip install -r requirements.txt
 ```
