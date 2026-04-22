@@ -79,7 +79,7 @@ Open `prompts.py` and edit `SYSTEM_PROMPT`. Replace the `[PLACEHOLDERS]` with yo
 
 **This is the most important step.** The quality of the output depends entirely on how well you describe yourself here. Be specific about your expertise, mention real projects, and describe what you want to avoid (jargon, hollow phrases, etc.).
 
-Also edit the `TOPICS` list to match your field. The default topics are DevOps/Cloud/Security oriented — swap them out if you work in a different domain.
+Also edit the `TOPICS` list to match your field. The default topics are DevOps/Cloud/Security oriented; swap them out if you work in a different domain.
 
 ### 7. Set up the cron job
 
@@ -93,7 +93,7 @@ Add this line (adjust the path):
 0 9 * * 1 cd /path/to/linkedin-agent && /usr/bin/python3 agent.py >> agent.log 2>&1
 ```
 
-This runs every Monday at 9am. Change `* * 1` to whatever schedule you want — [crontab.guru](https://crontab.guru) is handy for this.
+This runs every Monday at 9am. Change `* * 1` to whatever schedule you want; [crontab.guru](https://crontab.guru) is handy for this.
 
 ---
 
@@ -114,7 +114,7 @@ It generates the post and asks for confirmation before publishing.
 ```
 linkedin-agent/
 ├── agent.py          # main logic: topic selection, generation, publishing
-├── prompts.py        # system prompt and topics list — edit these
+├── prompts.py        # system prompt and topics list; edit these
 ├── oauth_helper.py   # one-time OAuth flow to get your access token
 ├── post_now.py       # manual post on demand
 ├── .env.example      # env template
@@ -126,9 +126,9 @@ linkedin-agent/
 
 ## Notes
 
-- `history.json` is gitignored. Don't delete it — it's how the agent avoids repeating itself.
+- `history.json` is gitignored. Don't delete it; it's how the agent avoids repeating itself.
 - The model is set to `claude-opus-4-5` in `agent.py`. You can swap it for `claude-haiku-4-5` to cut costs further, though quality will vary.
-- The DuckDuckGo source search is best-effort — if it fails, the post generates without sources.
+- The DuckDuckGo source search is best-effort; if it fails, the post generates without sources.
 - Posts are in whatever language you specify in your system prompt. The default topics are in English.
 
 ---
