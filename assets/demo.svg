@@ -1,0 +1,181 @@
+<svg viewBox="0 0 700 320" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <style>text { font-family: 'SF Mono','Menlo','Monaco','Consolas','Courier New',monospace; font-size: 13px; }</style>
+    <clipPath id="cmd">
+      <rect x="20" y="50" width="0" height="22">
+        <animate attributeName="width" dur="16s" repeatCount="indefinite"
+          keyTimes="0;0.001;0.07;1" values="0;0;220;220" calcMode="linear"/>
+      </rect>
+    </clipPath>
+  </defs>
+
+  <!-- Window background -->
+  <rect width="700" height="320" rx="10" fill="#0d1117" stroke="#30363d" stroke-width="1"/>
+
+  <!-- Title bar -->
+  <rect width="700" height="34" rx="10" fill="#161b22"/>
+  <rect y="10" width="700" height="24" fill="#161b22"/>
+
+  <!-- Traffic lights -->
+  <circle cx="20" cy="17" r="5.5" fill="#ff5f56"/>
+  <circle cx="38" cy="17" r="5.5" fill="#ffbd2e"/>
+  <circle cx="56" cy="17" r="5.5" fill="#27c93f"/>
+
+  <!-- Window title -->
+  <text x="350" y="22" text-anchor="middle" font-size="12" fill="#8b949e">linkedin-agent — bash</text>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- SCENE 1 : Trending news → publish (0–50%)  -->
+  <!-- ═══════════════════════════════════════════ -->
+  <g>
+    <animate attributeName="opacity" dur="16s" repeatCount="indefinite"
+      keyTimes="0;0.44;0.5;1" values="1;1;0;0" calcMode="linear"/>
+
+    <!-- $ python agent.py -->
+    <text x="20" y="66" fill="#58a6ff" clip-path="url(#cmd)">$ python agent.py</text>
+
+    <!-- cursor while typing -->
+    <rect y="53" width="8" height="14" fill="#c9d1d9">
+      <animate attributeName="x" dur="16s" repeatCount="indefinite"
+        keyTimes="0;0.001;0.07;1" values="20;20;238;238" calcMode="linear"/>
+      <animate attributeName="opacity" dur="16s" repeatCount="indefinite"
+        keyTimes="0;0.08;0.09;1" values="1;1;0;0" calcMode="discrete"/>
+      <animate attributeName="opacity" id="blink1" dur="0.9s" repeatCount="indefinite"
+        keyTimes="0;0.49;0.5;1" values="1;1;0;0" calcMode="discrete"/>
+    </rect>
+
+    <!-- [Trending] Found news -->
+    <text x="20" y="92" fill="#8b949e" opacity="0">
+      <tspan xml:space="preserve">[Trending] Found: "Ransomware hits major cloud provider"</tspan>
+      <animate attributeName="opacity" dur="16s" repeatCount="indefinite"
+        keyTimes="0;0.09;1" values="0;1;1" calcMode="discrete"/>
+    </text>
+
+    <!-- Generating post... -->
+    <text x="20" y="112" fill="#484f58" opacity="0">
+      <tspan xml:space="preserve">Generating post...</tspan>
+      <animate attributeName="opacity" dur="16s" repeatCount="indefinite"
+        keyTimes="0;0.14;1" values="0;1;1" calcMode="discrete"/>
+    </text>
+
+    <!-- separator top -->
+    <text x="20" y="136" fill="#21262d" opacity="0">
+      <tspan>─────────────────────────────────────────────────</tspan>
+      <animate attributeName="opacity" dur="16s" repeatCount="indefinite"
+        keyTimes="0;0.19;1" values="0;1;1" calcMode="discrete"/>
+    </text>
+
+    <!-- Post line 1 -->
+    <text x="20" y="156" fill="#c9d1d9" opacity="0">
+      <tspan xml:space="preserve">3 géants du cloud piratés en quelques semaines.</tspan>
+      <animate attributeName="opacity" dur="16s" repeatCount="indefinite"
+        keyTimes="0;0.20;1" values="0;1;1" calcMode="discrete"/>
+    </text>
+
+    <!-- Post line 2 -->
+    <text x="20" y="174" fill="#c9d1d9" opacity="0">
+      <tspan xml:space="preserve">Et honnêtement, ça ne me surprend pas.</tspan>
+      <animate attributeName="opacity" dur="16s" repeatCount="indefinite"
+        keyTimes="0;0.22;1" values="0;1;1" calcMode="discrete"/>
+    </text>
+
+    <!-- ellipsis -->
+    <text x="20" y="192" fill="#484f58" opacity="0">
+      <tspan xml:space="preserve">[...] 287 words · 4 hashtags</tspan>
+      <animate attributeName="opacity" dur="16s" repeatCount="indefinite"
+        keyTimes="0;0.26;1" values="0;1;1" calcMode="discrete"/>
+    </text>
+
+    <!-- separator bottom -->
+    <text x="20" y="210" fill="#21262d" opacity="0">
+      <tspan>─────────────────────────────────────────────────</tspan>
+      <animate attributeName="opacity" dur="16s" repeatCount="indefinite"
+        keyTimes="0;0.28;1" values="0;1;1" calcMode="discrete"/>
+    </text>
+
+    <!-- Published -->
+    <text x="20" y="234" fill="#3fb950" opacity="0">
+      <tspan xml:space="preserve">✓ Published to LinkedIn</tspan>
+      <animate attributeName="opacity" dur="16s" repeatCount="indefinite"
+        keyTimes="0;0.33;1" values="0;1;1" calcMode="discrete"/>
+    </text>
+  </g>
+
+  <!-- ══════════════════════════════════════════════ -->
+  <!-- SCENE 2 : queue.md → Claude → publish (50–100%) -->
+  <!-- ══════════════════════════════════════════════ -->
+  <g opacity="0">
+    <animate attributeName="opacity" dur="16s" repeatCount="indefinite"
+      keyTimes="0;0.49;0.5;0.94;1;1" values="0;0;1;1;0;0" calcMode="linear"/>
+
+    <!-- $ python agent.py -->
+    <text x="20" y="66" fill="#58a6ff">$ python agent.py</text>
+
+    <!-- Queue found -->
+    <text x="20" y="92" fill="#e3b341" opacity="0">
+      <tspan xml:space="preserve">[Queue] Draft found → sending to Claude...</tspan>
+      <animate attributeName="opacity" dur="16s" repeatCount="indefinite"
+        keyTimes="0;0.54;1" values="0;1;1" calcMode="discrete"/>
+    </text>
+
+    <!-- queue entry -->
+    <text x="20" y="118" fill="#484f58" opacity="0">
+      <tspan xml:space="preserve">  ✎  "Hack Rockstar - angle sécurité studios AAA"</tspan>
+      <animate attributeName="opacity" dur="16s" repeatCount="indefinite"
+        keyTimes="0;0.57;1" values="0;1;1" calcMode="discrete"/>
+    </text>
+
+    <!-- queue remaining -->
+    <text x="20" y="136" fill="#484f58" opacity="0">
+      <tspan xml:space="preserve">  ·  2 entries remaining after this</tspan>
+      <animate attributeName="opacity" dur="16s" repeatCount="indefinite"
+        keyTimes="0;0.59;1" values="0;1;1" calcMode="discrete"/>
+    </text>
+
+    <!-- separator top -->
+    <text x="20" y="158" fill="#21262d" opacity="0">
+      <tspan>─────────────────────────────────────────────────</tspan>
+      <animate attributeName="opacity" dur="16s" repeatCount="indefinite"
+        keyTimes="0;0.63;1" values="0;1;1" calcMode="discrete"/>
+    </text>
+
+    <!-- Post line 1 -->
+    <text x="20" y="178" fill="#c9d1d9" opacity="0">
+      <tspan xml:space="preserve">Un adolescent de 17 ans a mis à genoux</tspan>
+      <animate attributeName="opacity" dur="16s" repeatCount="indefinite"
+        keyTimes="0;0.65;1" values="0;1;1" calcMode="discrete"/>
+    </text>
+
+    <!-- Post line 2 -->
+    <text x="20" y="196" fill="#c9d1d9" opacity="0">
+      <tspan xml:space="preserve">l'un des studios les plus secrets du jeu vidéo.</tspan>
+      <animate attributeName="opacity" dur="16s" repeatCount="indefinite"
+        keyTimes="0;0.67;1" values="0;1;1" calcMode="discrete"/>
+    </text>
+
+    <!-- ellipsis -->
+    <text x="20" y="214" fill="#484f58" opacity="0">
+      <tspan xml:space="preserve">[...] 312 words · @Rockstar Games · 4 hashtags</tspan>
+      <animate attributeName="opacity" dur="16s" repeatCount="indefinite"
+        keyTimes="0;0.70;1" values="0;1;1" calcMode="discrete"/>
+    </text>
+
+    <!-- separator bottom -->
+    <text x="20" y="232" fill="#21262d" opacity="0">
+      <tspan>─────────────────────────────────────────────────</tspan>
+      <animate attributeName="opacity" dur="16s" repeatCount="indefinite"
+        keyTimes="0;0.72;1" values="0;1;1" calcMode="discrete"/>
+    </text>
+
+    <!-- Published queue -->
+    <text x="20" y="256" fill="#3fb950" opacity="0">
+      <tspan xml:space="preserve">✓ Published to LinkedIn · queue updated (2 remaining)</tspan>
+      <animate attributeName="opacity" dur="16s" repeatCount="indefinite"
+        keyTimes="0;0.77;1" values="0;1;1" calcMode="discrete"/>
+    </text>
+
+  </g>
+
+  <!-- Scene label bottom right -->
+  <text x="680" y="310" text-anchor="end" font-size="10" fill="#21262d">linkedin-agent</text>
+</svg>
