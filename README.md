@@ -10,12 +10,18 @@ Costs roughly $2-3/year to run.
 
 ## How it works
 
-1. Picks a random topic from a list you define (~50 by default)
-2. Avoids the last 5 used topics so it doesn't repeat itself
-3. For technical topics, pulls 2 fresh sources via DuckDuckGo
-4. Sends everything to Claude with your system prompt
-5. Posts to LinkedIn
-6. Saves to `history.json`
+Each run follows a 3-tier topic selection:
+
+1. **Trending Claude skill (~25% of runs)**: searches GitHub for recently created Claude Code skill repos gaining stars fast. If found, generates a teaser post and a local install guide in `skills/`.
+2. **This week's real news**: searches DuckDuckGo News for a real cybersecurity or gaming incident from the past 7 days. Generic explainer articles are filtered out automatically.
+3. **Static topic list (fallback)**: if no news is found, picks from your curated topic list, avoiding the last 5 used topics.
+
+Then:
+
+4. For technical or news topics, pulls 2 fresh sources via DuckDuckGo
+5. Sends everything to Claude with your system prompt
+6. Posts to LinkedIn
+7. Saves to `history.json`
 
 No database, no UI, no queue. Just a Python script.
 
@@ -71,6 +77,18 @@ LINKEDIN_CLIENT_ID=your_client_id
 LINKEDIN_CLIENT_SECRET=your_client_secret
 LINKEDIN_ACCESS_TOKEN=AQX...
 LINKEDIN_PERSON_URN=urn:li:person:...
+
+# Optional — raises GitHub API rate limit from 60 to 5000 req/hour
+GITHUB_TOKEN=
+
+# Author info for auto-generated install guides
+AUTHOR_NAME=Your Name
+AUTHOR_TITLE=Your Job Title
+AUTHOR_COMPANY=Your Company
+WEBSITE_URL=https://yourwebsite.com
+LINKEDIN_URL=https://linkedin.com/in/yourprofile
+MALT_URL=                        # optional
+GITHUB_URL=https://github.com/yourusername
 ```
 
 ### 6. Customize your system prompt
@@ -119,6 +137,8 @@ linkedin-agent/
 ├── post_now.py       # manual post on demand
 ├── .env.example      # env template
 ├── history.json      # post history (auto-created, gitignored)
+├── skills/           # auto-generated install guides (gitignored)
+├── CHANGELOG.md      # version history
 └── requirements.txt
 ```
 

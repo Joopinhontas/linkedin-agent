@@ -9,6 +9,8 @@ MENTIONS = """
 Rules for mentions:
 - You can mention @[YOUR_COMPANY] once at most when talking about your work or a project
 - You can mention company names like @Microsoft, @Docker, @GitLab, etc. once at most if the post is directly about them
+- If the post is based on a news event involving a specific company (hack, breach, vulnerability, announcement), mention that company with @ once where it appears naturally. Examples: @CrowdStrike, @Microsoft, @Rockstar Games, @Nvidia, @Ubisoft, @SolarWinds, @LastPass, @Okta, @Change Healthcare, @Ivanti, etc.
+- Never use @ on companies not directly involved in the post topic
 - Maximum 2 mentions per post, never more
 - Don't force mentions if they don't fit naturally in the text
 """
@@ -24,6 +26,33 @@ To make the post feel authentic and human:
 - Sometimes end with an open question rather than a full resolution
 - Vary sentence length: mix long sentences with very short ones
 - A closing question works well to invite comments
+
+CLICHÉS TO AVOID — these phrases immediately read as AI-generated and kill engagement:
+- "at 3am" / "in the middle of the night" — every DevOps post uses this
+- "you never know, it might come in handy"
+- "spoiler", "game changer", "next level", "deep dive"
+- Any war/art metaphor that doesn't come naturally
+"""
+
+PERFORMANCE = """
+WHAT DRIVES IMPRESSIONS — rules based on highest-performing post patterns:
+
+1. ANCHOR TO A REAL NAMED CLIENT OR COMPANY when the topic allows it.
+   "at [Client Name], I learned that..." drives far more engagement than "at a client's".
+   Use real names from your experience list when relevant.
+
+2. COUNTERINTUITIVE TWIST in the first 3 lines.
+   The reader should think "huh, didn't expect that."
+   Strong pattern: "X for Y. Simple on paper. The real challenge isn't technical. It's organizational."
+   Formulas that work: "The real problem isn't X, it's Y", "Everyone talks about X, nobody talks about Y"
+
+3. AVOID GENERIC TOPICS without a strong personal angle.
+   "Grafana best practices", "Why Kubernetes is great" → invisible posts.
+   If the topic is generic, you MUST have a personal angle: a specific mistake, a real incident, a concrete number.
+
+4. ONE CONCRETE NUMBER from a real mission beats ten generalities.
+   "MTTR dropped 40%" > "it improves performance"
+   "rebuilt the environment in 45 minutes" > "it saves time"
 """
 
 # ---
@@ -72,7 +101,7 @@ VARY FORMATS — rotate between these styles depending on the topic:
 - "career mistake": a mistake you made, what it cost you, what you'd do differently
 - "field tip": what you apply systematically, why, with a concrete example
 
-""" + MENTIONS + HUMANISATION
+""" + MENTIONS + HUMANISATION + PERFORMANCE
 
 # ---
 # TOPICS — the pool of subjects the agent picks from each run
@@ -86,77 +115,45 @@ VARY FORMATS — rotate between these styles depending on the topic:
 # ---
 
 TOPICS = [
-    # Cybersecurity
-    "a recent critical CVE or notable attack (ransomware, supply chain, cloud breach) with your field analysis",
-    "secrets management in CI/CD pipelines: common mistakes you see and how to fix them",
-    "Kubernetes security in production: RBAC, Network Policies, what teams consistently overlook",
+    # === GAMING + CYBERSECURITY (high engagement, relatable angle) ===
+    "a recent hack or leak in the gaming industry (major studio, game publisher): what it reveals about security in creative environments",
+    "what the Rockstar Games / GTA leak teaches us about protecting dev pipelines in high-value studios",
+    "DDoS attacks on online game servers: what they cost and how infrastructure must be built to handle them",
+    "when a game gets leaked before launch: the confidentiality and DevOps lessons for any software company",
 
-    # DevOps / Cloud
-    "a real experience with Grafana/Prometheus/Loki observability and what it actually changed for time-to-diagnosis",
-    "Docker Swarm vs Kubernetes: when one is genuinely better than the other, from real experience",
-    "Terraform + Ansible for full IaC: what you learned deploying on critical environments",
-    "secure CI/CD: 3 practices you apply systematically to harden a GitLab pipeline",
+    # === HIGH-PRIORITY CYBERSECURITY (fallback if no news) ===
+    "a recent critical CVE on Kubernetes, Docker or a cloud stack: your field analysis and what teams should do now",
+    "supply chain attack: how one npm or PyPI package can compromise an entire infrastructure",
+    "ransomware on a cloud infrastructure: how it gets in, how it spreads, what you'd have done to prevent it",
+    "secrets in CI/CD pipelines: the 3 mistakes you fix on almost every mission",
+    "Docker registry and Artifactory attacks: what teams never check",
+    "zero trust in practice with a real client: what actually changes vs the marketing pitch",
 
-    # Field experience
-    "why you went freelance and what you would have done differently if you started over",
-    "a production incident you solved with observability, and what it taught you",
-    "what companies underestimate when moving to Kubernetes in production",
+    # === FIELD EXPERIENCE WITH NAMED CLIENTS (proven high engagement) ===
+    "Terraform + Ansible in a critical environment: the real challenge wasn't technical, it was organizational",
+    "secret rotation and vault management: why it became non-negotiable on a healthcare client",
+    "a production incident solved with Grafana/Loki observability: hour by hour, what happened",
+    "before/after: a client struggling with containerized infra, what you changed, the measurable result",
+    "what 10 years of client missions taught you that DevOps certifications never will",
 
-    # Practical advice
-    "backup as a resilience strategy: what you actually set up (not just a cron dump)",
-    "3 cloud architecture mistakes you see constantly in missions and how to avoid them",
-    "how to structure a containerized multi-environment platform (Prod/Staging/QA) without losing your mind",
-
-    # Tools / Ecosystem
-    "a DevSecOps tool or practice you recently adopted and why it's worth it",
-    "the state of cloud observability in 2025: what changed, what still matters",
-
-    # Storytelling / Incident
-    "a critical production incident you lived through: the alert fires, the first 3 hours, what saved you",
-    "an architecture mistake you made early in your career and what it actually cost you",
-    "before/after: a client struggling with their infra, what you changed in the mission, the measurable result",
-    "what 10 years of client work taught you that certifications never will",
-
-    # Unpopular opinions
-    "unpopular opinion on Kubernetes: when it's the wrong solution and why nobody wants to hear it",
+    # === UNPOPULAR OPINIONS (high reach) ===
+    "unpopular opinion: Kubernetes is the wrong solution for the majority of companies that adopt it",
+    "what companies call DevOps is often just automated deployment — and that's a problem",
     "what nobody says about the cloud: the promise vs the reality after years of real missions",
-    "unpopular opinion on DevOps: what genuinely doesn't work in most teams you encounter",
-    "what companies call DevOps is often just automated deployment — and why that's a problem",
+    "unpopular opinion: technical documentation is the best investment a DevOps team can make",
 
-    # Career / Freelance
+    # === DEVOPS / IaC / CLOUD (evergreen fallback) ===
+    "Docker Swarm vs Kubernetes: from real experience, when one is genuinely better than the other",
+    "secure CI/CD: 3 practices you apply systematically to harden a GitLab pipeline",
+    "GitOps with ArgoCD: real feedback after a production deployment",
+    "Terraform in teams: the state file mistakes that hurt and how to avoid them",
+    "IaC drift: how to detect and correct gaps between your code and production",
+    "designing for failure: the resilience patterns you bake in from day one, not in a crisis",
+    "multi-cloud: the real reasons it's usually a bad idea dressed up as strategy",
+
+    # === CAREER / FREELANCE ===
+    "why you went freelance and what you'd do differently if you started over",
     "what nobody tells you about freelancing in DevOps/Cloud: the real struggles and the real freedoms",
     "how you vet a mission before signing: the questions you ask and the red flags you watch for",
-    "billing for expertise vs billing for time: the mindset shift that changed your business",
-
-    # Advanced security
-    "zero trust in practice: what it actually changes in a cloud architecture and how you implement it",
-    "CVE management in enterprise: why most teams are always behind and how to close the gap",
-    "Docker registry attacks: what teams never check and how to secure your Artifactory",
-    "supply chain attack: how one npm or PyPI package can compromise your entire infrastructure",
-    "hardening a Kubernetes cluster from scratch: the first 10 things you do every time",
-
-    # Advanced observability
-    "why your monitoring is lying to you: the metrics everyone watches vs the ones that actually matter in prod",
-    "Loki vs ELK: a real comparison after using both on critical environments",
-    "useless alerts that kill team responsiveness: how to clean up your Alertmanager",
-    "SLOs and SLAs: the difference between defining them on paper and actually keeping them in production",
-    "a Grafana dashboard that actually saves the day: what you put in it and why",
-
-    # IaC and automation
-    "Terraform in teams: the state file mistakes that hurt and how to avoid them with a solid remote backend",
-    "GitOps with ArgoCD or FluxCD: real feedback after a production deployment with a client",
-    "IaC is great, drift is reality: how to detect and correct gaps in production",
-    "Ansible in 2025: still relevant or eclipsed by Terraform and cloud-native tooling?",
-    "how to test your infrastructure before deploying it: Terratest, Checkov, what you actually use",
-
-    # Architecture
-    "monolith vs microservices: after years of missions, what I actually recommend depending on context",
-    "designing for failure: the resilience patterns you bake in from day one, not in a crisis",
-    "technical debt in infrastructure: how to measure it, prioritize it, and convince a client to invest",
-    "multi-cloud or not: the real reasons it's usually a bad idea dressed up as strategy",
-    "Kubernetes cluster sizing: the calculation mistakes you see everywhere and how to avoid them",
-
-    # Documentation and process
-    "technical documentation: why you make it a priority when most DevOps engineers skip it",
-    "working with teams that resist change: how to get people on board without creating friction",
+    "billing for expertise vs billing for time: the mindset shift that changed everything",
 ]
