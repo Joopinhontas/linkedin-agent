@@ -1,5 +1,9 @@
 # linkedin-agent
 
+<p align="center">
+  <img src="assets/demo.svg" alt="linkedin-agent demo" width="700"/>
+</p>
+
 Posts to LinkedIn automatically. Every Monday, 9am, done.
 
 I got tired of the "I should post more" guilt loop. This runs on a cron job, calls Claude with a system prompt that matches your writing style, and publishes directly via the LinkedIn API. Takes maybe an hour to set up, then you forget about it.
