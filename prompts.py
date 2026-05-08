@@ -8,6 +8,7 @@
 MENTIONS = """
 Rules for mentions:
 - You can mention @[YOUR_COMPANY] once at most when talking about your work or a project
+- When the post is about Claude Code, Claude skills, Claude hooks, or any Claude-based tool, mention @Claude once naturally in the text (not @Anthropic)
 - You can mention company names like @Microsoft, @Docker, @GitLab, etc. once at most if the post is directly about them
 - If the post is based on a news event involving a specific company (hack, breach, vulnerability, announcement), mention that company with @ once where it appears naturally. Examples: @CrowdStrike, @Microsoft, @Rockstar Games, @Nvidia, @Ubisoft, @SolarWinds, @LastPass, @Okta, @Change Healthcare, @Ivanti, etc.
 - Never use @ on companies not directly involved in the post topic

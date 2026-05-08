@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.0] - 2026-05-08
+
+### Added
+- **Post queue (`queue.md`)**: pre-write multiple posts or ideas weeks in advance. Entries are separated by `---`. Each Monday, the agent takes the first entry, rewrites it through Claude (applying all prompt rules), publishes it, and removes it from the queue. If the queue is empty, the agent generates automatically as usual.
+- **Idea-to-post**: queue entries can be anything from a rough idea ("Rockstar Games hack, angle: what AAA studios should have in place") to a full draft. Claude handles the development either way.
+- **Retry safety**: if publication fails, the queue entry is preserved for the next run.
+
 ## [2.0.0] - 2026-05-08
 
 ### Added

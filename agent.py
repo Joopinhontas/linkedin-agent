@@ -367,8 +367,66 @@ def publish_to_linkedin(post_text: str) -> bool:
     return r.status_code == 201
 
 
+QUEUE_FILE = Path("queue.md")
+
+
+def pop_queue() -> str | None:
+    """Returns the first draft from queue.md and removes it from the file."""
+    if not QUEUE_FILE.exists():
+        return None
+    content = QUEUE_FILE.read_text(encoding="utf-8")
+    entries = [e.strip() for e in content.split("---") if e.strip()]
+    if not entries:
+        QUEUE_FILE.unlink()
+        return None
+    draft = entries[0]
+    remaining = entries[1:]
+    if remaining:
+        QUEUE_FILE.write_text("\n\n---\n\n".join(remaining) + "\n", encoding="utf-8")
+    else:
+        QUEUE_FILE.unlink()
+    return draft
+
+
 def run():
     history = load_history()
+
+    # If posts are queued, take the first one
+    draft = pop_queue()
+    if draft:
+        topic = "queued_post"
+        print(f"[{datetime.now()}] Queued post found, sending to Claude...")
+
+        message = client.messages.create(
+            model="claude-opus-4-5",
+            max_tokens=1024,
+            temperature=0.85,
+            system=SYSTEM_PROMPT,
+            messages=[{
+                "role": "user",
+                "content": f"""Here is a draft or idea for a LinkedIn post I pre-wrote:
+
+---
+{draft}
+---
+
+Develop and rewrite it following ALL prompt rules (no em dash, no clichés, LinkedIn format, well-placed emojis, punchy hook).
+If it's just an idea or a few words, develop it into a full LinkedIn post.
+Keep the tone, key ideas, and any CTA if present.
+Output only the final post text, ready to publish."""
+            }]
+        )
+        post = message.content[0].text
+        print(f"\n--- POST REWRITTEN BY CLAUDE ---\n{post}\n---")
+
+        success = publish_to_linkedin(post)
+        if success:
+            save_to_history(post, topic)
+            print("✓ Published to LinkedIn — queue updated")
+        else:
+            print("✗ Publication failed — queue.md entry preserved for retry")
+        return
+
     topic = pick_topic(history)
     print(f"[{datetime.now()}] Generating post on: {topic[:80]}...")
 
