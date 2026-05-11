@@ -127,11 +127,10 @@ def fetch_claude_skill() -> dict | None:
 
 
 def pick_topic(history: list) -> str:
-    # Priority 1 (~25% of runs): trending Claude skill from GitHub
-    if random.random() < 0.25:
-        skill = fetch_claude_skill()
-        if skill:
-            return f"{SKILL_PREFIX}{skill['name']}|{skill['url']}|{skill['title']}|{skill['description']}"
+    # Priority 1: trending Claude skill (always tried first)
+    skill = fetch_claude_skill()
+    if skill:
+        return f"{SKILL_PREFIX}{skill['name']}|{skill['url']}|{skill['title']}|{skill['description']}"
 
     # Priority 2: real news event from this week
     trending = fetch_trending_topic()
@@ -286,6 +285,161 @@ Output only the Markdown content."""
         messages=[{"role": "user", "content": prompt}]
     )
     return message.content[0].text
+
+
+def get_skill_svg_scenarios(skill: dict) -> dict | None:
+    """Ask Claude for 2 concrete usage scenarios for the animated SVG demo."""
+    import json, re
+    prompt = f"""Claude Code skill to demo:
+Name: {skill['name']}
+Description: {skill['description']}
+
+Return ONLY a JSON object with 2 usage scenarios for an animated terminal demo.
+Keep all text under 52 characters. Use English.
+Types: "error" (red), "warning" (orange), "info" (gray), "success" (green).
+
+{{
+  "s1_command": "> user command for scenario 1",
+  "s1_status": "[{skill['name']}] running checks...",
+  "s1_lines": [
+    {{"text": "result line 1", "type": "error|warning|info"}},
+    {{"text": "result line 2", "type": "error|warning|info"}},
+    {{"text": "result line 3", "type": "error|warning|info"}}
+  ],
+  "s1_summary": "summary of findings",
+  "s2_command": "> fix/action command for scenario 2",
+  "s2_status": "applying fixes...",
+  "s2_lines": [
+    {{"text": "result line 1", "type": "success"}},
+    {{"text": "result line 2", "type": "success"}},
+    {{"text": "result line 3", "type": "success"}}
+  ],
+  "s2_summary": "final success summary"
+}}
+
+Return only the JSON."""
+    try:
+        msg = client.messages.create(
+            model="claude-opus-4-5",
+            max_tokens=500,
+            temperature=0.3,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        text = msg.content[0].text.strip()
+        match = re.search(r'\{.*\}', text, re.DOTALL)
+        return json.loads(match.group() if match else text)
+    except Exception as e:
+        print(f"SVG scenarios generation failed: {e}")
+        return None
+
+
+def generate_skill_svg(skill: dict, d: dict) -> str:
+    """Builds the animated terminal SVG demo for a skill."""
+    from xml.sax.saxutils import escape as xe
+
+    COLOR_MAP = {
+        "error": "#f85149", "warning": "#e3b341",
+        "info": "#8b949e",  "success": "#3fb950",
+    }
+
+    def txt(y, content, color, kt):
+        return (
+            f'    <text x="20" y="{y}" fill="{color}" opacity="0">\n'
+            f'      <tspan>{xe(str(content))}</tspan>\n'
+            f'      <animate attributeName="opacity" dur="18s" repeatCount="indefinite"\n'
+            f'        keyTimes="0;{kt};1" values="0;1;1" calcMode="discrete"/>\n'
+            f'    </text>'
+        )
+
+    def sep(y, kt):
+        return txt(y, "─" * 50, "#21262d", kt)
+
+    l1 = [l.get("text", "") for l in d.get("s1_lines", [{}, {}, {}])]
+    c1 = [COLOR_MAP.get(l.get("type", "info"), "#8b949e") for l in d.get("s1_lines", [{}, {}, {}])]
+    l2 = [l.get("text", "") for l in d.get("s2_lines", [{}, {}, {}])]
+    while len(l1) < 3: l1.append(""); c1.append("#8b949e")
+    while len(l2) < 3: l2.append("")
+
+    sn      = xe(skill.get("name", "skill"))
+    s1_cmd  = xe(d.get("s1_command", "> run the skill"))
+    s1_stat = xe(d.get("s1_status",  "Processing..."))
+    s1_sum  = xe(d.get("s1_summary", "Done"))
+    s2_cmd  = xe(d.get("s2_command", "> apply fixes"))
+    s2_stat = xe(d.get("s2_status",  "Applying fixes..."))
+    s2_sum  = xe(d.get("s2_summary", "✓ All done"))
+
+    return f'''<svg viewBox="0 0 700 290" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <style>text {{ font-family: 'SF Mono','Menlo','Monaco','Consolas','Courier New',monospace; font-size: 12.5px; }}</style>
+    <clipPath id="cmd1">
+      <rect x="20" y="51" width="0" height="18">
+        <animate attributeName="width" dur="18s" repeatCount="indefinite"
+          keyTimes="0;0.001;0.065;1" values="0;0;82;82" calcMode="linear"/>
+      </rect>
+    </clipPath>
+  </defs>
+  <rect width="700" height="290" rx="10" fill="#0d1117" stroke="#30363d" stroke-width="1"/>
+  <rect width="700" height="34" rx="10" fill="#161b22"/>
+  <rect y="10" width="700" height="24" fill="#161b22"/>
+  <circle cx="20" cy="17" r="5.5" fill="#ff5f56"/>
+  <circle cx="38" cy="17" r="5.5" fill="#ffbd2e"/>
+  <circle cx="56" cy="17" r="5.5" fill="#27c93f"/>
+  <text x="350" y="22" text-anchor="middle" font-size="12" fill="#8b949e">{sn} — claude</text>
+
+  <!-- SCENE 1 -->
+  <g>
+    <animate attributeName="opacity" dur="18s" repeatCount="indefinite"
+      keyTimes="0;0.44;0.50;1" values="1;1;0;0" calcMode="linear"/>
+    <text x="20" y="66" fill="#58a6ff" clip-path="url(#cmd1)">$ claude</text>
+    <rect y="52" width="8" height="15" fill="#c9d1d9">
+      <animate attributeName="x" dur="18s" repeatCount="indefinite"
+        keyTimes="0;0.001;0.065;1" values="20;20;102;102" calcMode="linear"/>
+      <animate attributeName="opacity" dur="18s" repeatCount="indefinite"
+        keyTimes="0;0.075;0.076;1" values="1;1;0;0" calcMode="discrete"/>
+    </rect>
+    <text x="20" y="88" fill="#c9d1d9" opacity="0">
+      <tspan>{s1_cmd}</tspan>
+      <animate attributeName="opacity" dur="18s" repeatCount="indefinite"
+        keyTimes="0;0.10;1" values="0;1;1" calcMode="discrete"/>
+    </text>
+    <text x="20" y="110" fill="#e3b341" opacity="0">
+      <tspan>{s1_stat}</tspan>
+      <animate attributeName="opacity" dur="18s" repeatCount="indefinite"
+        keyTimes="0;0.16;1" values="0;1;1" calcMode="discrete"/>
+    </text>
+{sep(127, "0.20")}
+{txt(147, l1[0], c1[0], "0.24")}
+{txt(165, l1[1], c1[1], "0.28")}
+{txt(183, l1[2], c1[2], "0.32")}
+{sep(200, "0.36")}
+{txt(220, s1_sum, "#f85149", "0.40")}
+  </g>
+
+  <!-- SCENE 2 -->
+  <g opacity="0">
+    <animate attributeName="opacity" dur="18s" repeatCount="indefinite"
+      keyTimes="0;0.49;0.50;0.93;1" values="0;0;1;1;0" calcMode="linear"/>
+    <text x="20" y="66" fill="#58a6ff">$ claude</text>
+    <text x="20" y="88" fill="#c9d1d9" opacity="0">
+      <tspan>{s2_cmd}</tspan>
+      <animate attributeName="opacity" dur="18s" repeatCount="indefinite"
+        keyTimes="0;0.54;1" values="0;1;1" calcMode="discrete"/>
+    </text>
+    <text x="20" y="110" fill="#484f58" opacity="0">
+      <tspan>{s2_stat}</tspan>
+      <animate attributeName="opacity" dur="18s" repeatCount="indefinite"
+        keyTimes="0;0.58;1" values="0;1;1" calcMode="discrete"/>
+    </text>
+{sep(127, "0.61")}
+{txt(147, l2[0], "#3fb950", "0.64")}
+{txt(165, l2[1], "#3fb950", "0.68")}
+{txt(183, l2[2], "#3fb950", "0.72")}
+{sep(200, "0.76")}
+{txt(220, s2_sum, "#3fb950", "0.80")}
+  </g>
+
+  <text x="680" y="282" text-anchor="end" font-size="10" fill="#21262d">{sn}</text>
+</svg>'''
 
 
 def generate_post(topic: str, history: list) -> str:
@@ -460,6 +614,13 @@ Output only the final post text, ready to publish."""
         guide = generate_install_guide(skill)
         install_path.write_text(guide, encoding="utf-8")
         print(f"✓ Install guide generated: {install_path}")
+
+        scenarios = get_skill_svg_scenarios(skill)
+        if scenarios:
+            svg_content = generate_skill_svg(skill, scenarios)
+            svg_path = SKILLS_DIR / f"demo-{safe_name}.svg"
+            svg_path.write_text(svg_content, encoding="utf-8")
+            print(f"✓ Demo SVG generated: {svg_path}")
 
     success = publish_to_linkedin(post)
     if success:
