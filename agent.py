@@ -368,6 +368,7 @@ def publish_to_linkedin(post_text: str) -> bool:
 
 
 QUEUE_FILE = Path("queue.md")
+PENDING_FILE = Path("pending.md")
 
 
 def pop_queue() -> str | None:
@@ -432,6 +433,17 @@ Output only the final post text, ready to publish."""
 
     post = generate_post(topic, history)
     print(f"\n--- GENERATED POST ---\n{post}\n---")
+
+    # News-based posts are held for manual review — a news story can be false
+    # or unverified. Publish manually with: python post_now.py --from-pending
+    if topic.startswith("this week's news"):
+        PENDING_FILE.write_text(
+            f"TOPIC: {topic}\n\n---\n\n{post}\n",
+            encoding="utf-8"
+        )
+        print(f"\n⚠ News-based post — publication suspended.")
+        print(f"  Verify the facts, then publish with: python post_now.py --from-pending")
+        return
 
     # If it's a skill topic, also generate the INSTALL guide
     if topic.startswith(SKILL_PREFIX):
