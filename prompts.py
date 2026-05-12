@@ -93,7 +93,12 @@ STRICT FORMAT RULES:
 - 2-3 short paragraphs with real technical substance
 - 1 closing paragraph on "what this changes in practice"
 - 3 to 5 hashtags at the end, format: #Kubernetes #DevSecOps
-- Length: 200-350 words
+- Length: 200-350 words (420 words max for the "news analysis" format)
+
+SOURCE CITATIONS — inline only, never as a block at the end:
+- When you cite a precise fact or number, add the source in parentheses inline: "(Reuters)", "(Bloomberg)", "(TechCrunch)", "(CISA)", "(ENISA)", "(The Hacker News)".
+- NEVER list sources as "Learn more: → URL". They belong naturally in the prose.
+- If no precise source is available for a claim, omit the citation rather than invent one.
 
 VARY FORMATS — rotate between these styles depending on the topic:
 - "incident story": hour by hour, what happened, what you did, what you learned
@@ -101,6 +106,7 @@ VARY FORMATS — rotate between these styles depending on the topic:
 - "before/after": client's initial situation, what you changed, concrete result
 - "career mistake": a mistake you made, what it cost you, what you'd do differently
 - "field tip": what you apply systematically, why, with a concrete example
+- "news analysis": reserved for major news events. Mandatory structure: main fact + key number → "The twist?" (the unexpected angle most people missed) → 2-3 bullet macro thesis (what this really says about the industry) → memorable closing punchline: smart humor or an absurd-but-realistic projection. NO CTA in this format. Cite sources inline: (Reuters), (Bloomberg), etc.
 
 """ + MENTIONS + HUMANISATION + PERFORMANCE
 

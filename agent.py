@@ -49,7 +49,16 @@ def fetch_trending_topic() -> str | None:
     ]
     skip_keywords = [
         "what is", "definition", "how to", "guide",
-        "best practices", "tips", "tutorial", "introduction", "overview"
+        "best practices", "tips", "tutorial", "introduction", "overview",
+        # sports / off-topic
+        "nba", "nfl", "nhl", "mlb", "fifa", "playoff", "champion", "league",
+        "football", "basketball", "baseball", "tennis", "golf", "soccer",
+        "election", "vote", "weather", "recipe",
+    ]
+    require_keywords = [
+        "hack", "breach", "attack", "ransomware", "malware", "vulnerability",
+        "cve", "exploit", "leak", "data", "security", "cyber", "phishing",
+        "zero-day", "zero day", "backdoor", "botnet", "ddos", "infosec",
     ]
     try:
         with DDGS() as ddgs:
@@ -57,7 +66,11 @@ def fetch_trending_topic() -> str | None:
                 results = list(ddgs.news(query, max_results=5, timelimit="w"))
                 for r in results:
                     title = r.get("title", "").lower()
+                    body_low = r.get("body", "").lower()
+                    combined = title + " " + body_low
                     if any(kw in title for kw in skip_keywords):
+                        continue
+                    if not any(kw in combined for kw in require_keywords):
                         continue
                     title_raw = r.get("title", "")
                     body = r.get("body", "")[:300]
@@ -682,15 +695,28 @@ Output only the final post text, ready to publish."""
     # News-based posts are held for manual review — a news story can be false
     # or unverified. Publish manually with: python post_now.py --from-pending
     if topic.startswith("this week's news"):
+        og_image_path = None
+        sources = search_sources(topic)
+        if sources:
+            for s in sources:
+                result = fetch_og_image(s["url"])
+                if result:
+                    img_bytes, mime = result
+                    ext = ".jpg" if "jpeg" in mime else ".png"
+                    og_image_path = PENDING_FILE.with_suffix(ext)
+                    og_image_path.write_bytes(img_bytes)
+                    print(f"✓ OG image saved: {og_image_path.name}")
+                    break
         PENDING_FILE.write_text(
-            f"TOPIC: {topic}\n\n---\n\n{post}\n",
+            f"TOPIC: {topic}\nIMAGE: {og_image_path.name if og_image_path else ''}\n\n---\n\n{post}\n",
             encoding="utf-8"
         )
         print(f"\n⚠ News-based post — publication suspended.")
         print(f"  Verify the facts, then publish with: python post_now.py --from-pending")
         return
 
-    # If it's a skill topic, also generate the INSTALL guide
+    # If it's a skill topic, also generate the INSTALL guide + demo SVG + PNG for LinkedIn
+    image_path = None
     if topic.startswith(SKILL_PREFIX):
         parts = topic[len(SKILL_PREFIX):].split("|", 3)
         skill = {
@@ -712,8 +738,11 @@ Output only the final post text, ready to publish."""
             svg_path = SKILLS_DIR / f"demo-{safe_name}.svg"
             svg_path.write_text(svg_content, encoding="utf-8")
             print(f"✓ Demo SVG generated: {svg_path}")
+            image_path = svg_to_png(svg_path)
+            if image_path:
+                print(f"✓ PNG for LinkedIn: {image_path.name}")
 
-    success = publish_to_linkedin(post)
+    success = publish_to_linkedin(post, image_path)
     if success:
         save_to_history(post, topic)
         print("✓ Published to LinkedIn")
