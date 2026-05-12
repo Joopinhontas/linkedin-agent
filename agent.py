@@ -154,19 +154,87 @@ def search_sources(topic: str) -> list:
             if is_news:
                 raw = topic.split("Context:")[0].replace("this week's news: ", "").strip("'\" ()")
                 query = raw.split(".")[0][:120]
-                results = list(ddgs.text(query, max_results=2))
+                results = list(ddgs.text(query, max_results=5))
             else:
                 results = list(ddgs.text(
                     topic + " site:kubernetes.io OR site:cve.mitre.org OR site:thehackernews.com OR site:blog.gitguardian.com OR site:grafana.com OR site:cloud.google.com OR site:docs.microsoft.com OR site:securityweek.com",
-                    max_results=2
+                    max_results=3
                 ))
             sources = []
             for r in results:
-                sources.append({"title": r.get("title", ""), "url": r.get("href", "")})
+                sources.append({"title": r.get("title", ""), "url": r.get("href", ""), "body": r.get("body", "")[:300]})
             return sources
     except Exception as e:
         print(f"Source search failed: {e}")
         return []
+
+
+def fetch_og_image(url: str) -> tuple[bytes, str] | None:
+    """Fetch the Open Graph image from a news article. Returns (bytes, mime_type) or None."""
+    try:
+        r = requests.get(url, timeout=8, headers={"User-Agent": "Mozilla/5.0"})
+        if r.status_code != 200:
+            return None
+        match = re.search(
+            r'<meta[^>]+property=["\']og:image["\'][^>]+content=["\']([^"\']+)["\']', r.text
+        ) or re.search(
+            r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+property=["\']og:image["\']', r.text
+        )
+        if not match:
+            return None
+        img_url = match.group(1)
+        if img_url.startswith("//"):
+            img_url = "https:" + img_url
+        img_r = requests.get(img_url, timeout=8, headers={"User-Agent": "Mozilla/5.0"})
+        mime = img_r.headers.get("content-type", "image/jpeg").split(";")[0]
+        if img_r.status_code == 200 and mime.startswith("image/"):
+            return img_r.content, mime
+    except Exception as e:
+        print(f"OG image fetch failed: {e}")
+    return None
+
+
+def svg_to_png(svg_path: Path) -> Path | None:
+    """Convert SVG to PNG using cairosvg. Returns PNG path or None."""
+    try:
+        import cairosvg
+        png_path = svg_path.with_suffix(".png")
+        cairosvg.svg2png(url=str(svg_path), write_to=str(png_path), scale=2)
+        return png_path
+    except Exception as e:
+        print(f"SVG→PNG conversion failed: {e}")
+    return None
+
+
+def upload_image_to_linkedin(image_bytes: bytes, mime_type: str, token: str, urn: str) -> str | None:
+    """Upload an image to LinkedIn. Returns asset URN or None on failure."""
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+        "X-Restli-Protocol-Version": "2.0.0"
+    }
+    reg = requests.post(
+        "https://api.linkedin.com/v2/assets?action=registerUpload",
+        headers=headers,
+        json={
+            "registerUploadRequest": {
+                "recipes": ["urn:li:digitalmediaRecipe:feedshare-image"],
+                "owner": urn,
+                "serviceRelationships": [{"relationshipType": "OWNER", "identifier": "urn:li:userGeneratedContent"}]
+            }
+        }
+    )
+    if reg.status_code != 200:
+        print(f"Image register failed: {reg.status_code} {reg.text[:200]}")
+        return None
+    data = reg.json()
+    upload_url = data["value"]["uploadMechanism"]["com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest"]["uploadUrl"]
+    asset_urn = data["value"]["asset"]
+    up = requests.put(upload_url, data=image_bytes, headers={"Authorization": f"Bearer {token}", "Content-Type": mime_type})
+    if up.status_code not in (200, 201):
+        print(f"Image upload failed: {up.status_code}")
+        return None
+    return asset_urn
 
 
 def generate_skill_post(skill: dict) -> str:
@@ -460,21 +528,33 @@ def generate_post(topic: str, history: list) -> str:
         "Terraform", "Ansible", "observability", "Grafana", "security",
         "cloud", "backup", "secret", "RBAC", "ArgoCD", "IaC", "monitoring"
     ]
-    needs_sources = topic.startswith("this week's news") or any(kw.lower() in topic.lower() for kw in topics_with_sources)
+    is_news = topic.startswith("this week's news")
+    needs_sources = is_news or any(kw.lower() in topic.lower() for kw in topics_with_sources)
 
-    sources_block = ""
+    sources_context = ""
     if needs_sources:
         sources = search_sources(topic)
         if sources:
-            sources_block = "\n\nFurther reading:\n"
+            sources_context = "\n\nFacts and sources available (cite inline in parentheses when used):\n"
             for s in sources:
-                sources_block += f"-> {s['title']}: {s['url']}\n"
+                name = s["url"].split("/")[2].replace("www.", "").split(".")[0].capitalize()
+                sources_context += f"- [{name}] {s['title']}: {s['body']}\n"
 
     today = datetime.now().strftime("%A %d %B %Y")
 
+    format_instruction = ""
+    if is_news:
+        format_instruction = """
+Use the "news analysis" format MANDATORY:
+1. Main fact + key number as hook
+2. "The twist?" — the unexpected angle most people missed
+3. 2-3 bullet macro thesis (what this really says about the industry)
+4. Memorable closing punchline: smart humor or an absurd-but-realistic projection
+NO CTA. Length: 300-420 words. Cite sources inline: (Reuters), (Bloomberg), (TechCrunch), etc."""
+
     message = client.messages.create(
         model="claude-opus-4-5",
-        max_tokens=1024,
+        max_tokens=1400,
         temperature=0.9,
         system=SYSTEM_PROMPT,
         messages=[{
@@ -484,8 +564,8 @@ Generate a LinkedIn post about: {topic}
 
 Recent posts (do not repeat these angles):
 {recent}
-
-{f"At the end of the post, append this block exactly as-is: {sources_block}" if sources_block else ""}
+{sources_context}
+{format_instruction}
 
 Output only the post text, ready to publish."""
         }]
@@ -493,21 +573,27 @@ Output only the post text, ready to publish."""
     return message.content[0].text
 
 
-def publish_to_linkedin(post_text: str) -> bool:
+def publish_to_linkedin(post_text: str, image_path: Path | None = None) -> bool:
     token = os.getenv("LINKEDIN_ACCESS_TOKEN")
-    urn = os.getenv("LINKEDIN_PERSON_URN")
+    urn   = os.getenv("LINKEDIN_PERSON_URN")
 
-    payload = {
-        "author": urn,
-        "lifecycleState": "PUBLISHED",
-        "specificContent": {
-            "com.linkedin.ugc.ShareContent": {
-                "shareCommentary": {"text": post_text},
-                "shareMediaCategory": "NONE"
-            }
-        },
-        "visibility": {"com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC"}
-    }
+    asset_urn = None
+    if image_path and image_path.exists():
+        mime = "image/png" if image_path.suffix.lower() == ".png" else "image/jpeg"
+        asset_urn = upload_image_to_linkedin(image_path.read_bytes(), mime, token, urn)
+        if asset_urn:
+            print(f"✓ Image uploaded: {image_path.name}")
+        else:
+            print("⚠ Image upload failed — posting without image")
+
+    if asset_urn:
+        media = {
+            "shareCommentary": {"text": post_text},
+            "shareMediaCategory": "IMAGE",
+            "media": [{"status": "READY", "media": asset_urn, "description": {"text": ""}, "title": {"text": ""}}]
+        }
+    else:
+        media = {"shareCommentary": {"text": post_text}, "shareMediaCategory": "NONE"}
 
     r = requests.post(
         "https://api.linkedin.com/v2/ugcPosts",
@@ -516,7 +602,12 @@ def publish_to_linkedin(post_text: str) -> bool:
             "Content-Type": "application/json",
             "X-Restli-Protocol-Version": "2.0.0"
         },
-        json=payload
+        json={
+            "author": urn,
+            "lifecycleState": "PUBLISHED",
+            "specificContent": {"com.linkedin.ugc.ShareContent": media},
+            "visibility": {"com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC"}
+        }
     )
     return r.status_code == 201
 
