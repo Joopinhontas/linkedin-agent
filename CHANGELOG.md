@@ -1,5 +1,26 @@
 # Changelog
 
+## [2.2.0] - 2026-05-12
+
+### Added
+- **OG image for news posts**: when a news-based post is saved to `pending.md`, the agent now fetches the Open Graph image from the first source article and saves it alongside the post. `post_now.py` reads the `IMAGE:` header and attaches it when publishing.
+- **Animated SVG demo for skill posts**: every skill post now auto-generates a `demo-<skillname>.svg` in the `skills/` folder — a 2-scene animated terminal showing the skill in action.
+- **SVG→PNG conversion for LinkedIn**: the demo SVG is converted to a high-res PNG (scale 2×) via `cairosvg` and attached as an image when publishing the skill post.
+- **`require_keywords` filter**: news results must contain at least one security-related keyword (`hack`, `breach`, `ransomware`, `cve`, `exploit`, `zero-day`, etc.) checked against the combined title and body — prevents off-topic articles from being selected.
+- **Sports and off-topic `skip_keywords`**: results mentioning `nba`, `nfl`, `playoff`, `football`, `election`, etc. are now filtered out at the title level.
+- **Inline source citation rules** (`prompts.py`): posts must cite sources as `(Reuters)`, `(Bloomberg)`, `(TechCrunch)` etc. inline in the prose. Block source lists at the end are explicitly banned.
+- **"News analysis" post format** (`prompts.py`): mandatory structure for news posts — main fact + key number → "The twist?" → 2-3 macro thesis bullets → memorable closing punchline. No CTA. Up to 420 words.
+
+### Changed
+- `fetch_trending_topic()`: topic selection now checks `title + body` combined (not title only) against `require_keywords` before accepting a result.
+- `run()`: news posts now save an `IMAGE:` header in `pending.md` with the OG image filename.
+- `run()`: skill posts now pass the generated PNG to `publish_to_linkedin()` for image attachment.
+- `prompts.py`: word count updated from 350 to 420 words max for the news analysis format.
+- Skill posts now always generate a `demo-<slug>.svg` (and PNG) — previously optional.
+
+### Fixed
+- NBA playoff results were being selected as "ransomware" topics due to DuckDuckGo query matching. Fixed by `require_keywords` + combined body check.
+
 ## [2.1.0] - 2026-05-08
 
 ### Added
