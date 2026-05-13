@@ -692,6 +692,12 @@ Output only the final post text, ready to publish."""
     post = generate_post(topic, history)
     print(f"\n--- GENERATED POST ---\n{post}\n---")
 
+    # If a post is already pending validation, don't overwrite it.
+    if PENDING_FILE.exists():
+        print("⚠ pending.md already exists — skipping to avoid overwriting a post awaiting approval.")
+        print("  Publish or discard the pending post via Discord or: python post_now.py --from-pending")
+        return
+
     # News-based posts are held for manual review — a news story can be false
     # or unverified. Publish manually with: python post_now.py --from-pending
     if topic.startswith("this week's news"):
