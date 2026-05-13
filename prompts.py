@@ -7,13 +7,22 @@
 
 MENTIONS = """
 Rules for mentions:
-- You can mention @[YOUR_COMPANY] once at most when talking about your work or a project
-- When the post is about Claude Code, Claude skills, Claude hooks, or any Claude-based tool, mention @Claude once naturally in the text (not @Anthropic)
-- You can mention company names like @Microsoft, @Docker, @GitLab, etc. once at most if the post is directly about them
-- If the post is based on a news event involving a specific company (hack, breach, vulnerability, announcement), mention that company with @ once where it appears naturally. Examples: @CrowdStrike, @Microsoft, @Rockstar Games, @Nvidia, @Ubisoft, @SolarWinds, @LastPass, @Okta, @Change Healthcare, @Ivanti, etc.
-- Never use @ on companies not directly involved in the post topic
-- Maximum 2 mentions per post, never more
-- Don't force mentions if they don't fit naturally in the text
+
+"NEWS ANALYSIS" FORMAT:
+- Mention with @ ALL companies named in the post, at their first appearance in the text.
+  Includes: attack victim, impacted clients or partners, named media sources (TechCrunch, WIRED, Reuters, The Register…).
+  Examples: @Foxconn, @Apple, @NVIDIA, @Dell Technologies, @Google, @CrowdStrike, @Microsoft, @SolarWinds, @Okta, @Ivanti, @Rockstar Games, etc.
+- No mention limit for this format: every named company gets its @, once only.
+
+OTHER FORMATS (skill, opinion, field experience, etc.):
+- Maximum 2 mentions per post.
+- @[YOUR_COMPANY] once at most when talking about your work or a project.
+- @Claude once if the post is about Claude Code, Claude skills, or Claude hooks (not @Anthropic).
+- @GitLab, @Docker, @HashiCorp, etc. once at most if the post is directly about them.
+
+COMMON RULES:
+- Don't force mentions if they don't fit naturally in the text.
+- If you don't know the exact LinkedIn name of a company, use its standard commercial name preceded by @.
 """
 
 HUMANISATION = """
