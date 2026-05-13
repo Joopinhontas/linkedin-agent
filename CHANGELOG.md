@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.3.0] - 2026-05-13
+
+### Added
+- **`discord_bot.py`**: standalone Discord bot for managing pending posts from Discord.
+  - Watches `pending.md` every 30 seconds. When a new post is detected, sends it as a Discord embed (full text + OG image if available) with 3 action buttons.
+  - **✅ Publish** — calls `publish_to_linkedin()`, saves to history, cleans up `pending.md`.
+  - **🔄 Rewrite** — calls `generate_post()` with the same topic, updates `pending.md` and the Discord message in place.
+  - **🗑️ Discard** — deletes `pending.md` (and OG image if present).
+  - Uses persistent views: buttons survive bot restarts.
+  - Requires `DISCORD_BOT_TOKEN` and `DISCORD_CHANNEL_ID` in `.env`.
+- `discord.py>=2.0` and `cairosvg` added to `requirements.txt`.
+- `DISCORD_BOT_TOKEN` and `DISCORD_CHANNEL_ID` added to `.env.example`.
+
 ## [2.2.0] - 2026-05-12
 
 ### Added
