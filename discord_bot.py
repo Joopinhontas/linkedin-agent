@@ -139,6 +139,49 @@ class PostView(ui.View):
         await interaction.message.edit(embed=embed, view=self)
         await interaction.followup.send("✅ Post rewritten.", ephemeral=True)
 
+    @ui.button(label="🔁 New topic", style=discord.ButtonStyle.secondary, custom_id="pending_new_topic")
+    async def new_topic_btn(self, interaction: discord.Interaction, button: ui.Button):
+        pending = parse_pending()
+        if pending:
+            _, image_path, _ = pending
+            PENDING_FILE.unlink(missing_ok=True)
+            if image_path and image_path.exists():
+                image_path.unlink(missing_ok=True)
+
+        await interaction.response.defer()
+        await interaction.followup.send("⏳ Generating a new post on a different topic...", ephemeral=True)
+
+        from agent import pick_topic, generate_post, load_history, search_sources, fetch_og_image
+
+        loop = asyncio.get_running_loop()
+        history = await loop.run_in_executor(None, load_history)
+        topic = await loop.run_in_executor(None, functools.partial(pick_topic, history))
+        new_post = await loop.run_in_executor(None, functools.partial(generate_post, topic, history))
+
+        og_image_path = None
+        if "this week's news" in topic:
+            sources = await loop.run_in_executor(None, functools.partial(search_sources, topic))
+            for s in sources:
+                result = await loop.run_in_executor(None, functools.partial(fetch_og_image, s["url"]))
+                if result:
+                    img_bytes, mime = result
+                    ext = ".jpg" if "jpeg" in mime else ".png"
+                    og_image_path = PENDING_FILE.with_suffix(ext)
+                    og_image_path.write_bytes(img_bytes)
+                    break
+
+        save_pending(topic, og_image_path, new_post)
+
+        embed = build_embed(topic, new_post)
+        kwargs: dict = {"embed": embed, "view": PostView()}
+        if og_image_path and og_image_path.exists():
+            f = discord.File(str(og_image_path), filename=og_image_path.name)
+            embed.set_image(url=f"attachment://{og_image_path.name}")
+            kwargs["file"] = f
+
+        await interaction.message.delete()
+        await interaction.channel.send(**kwargs)
+
     @ui.button(label="🗑️ Discard", style=discord.ButtonStyle.danger, custom_id="pending_delete")
     async def delete_btn(self, interaction: discord.Interaction, button: ui.Button):
         pending = parse_pending()
