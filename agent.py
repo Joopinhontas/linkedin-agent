@@ -266,8 +266,8 @@ STRICT RULES:
 - Give 2-3 concrete, impressive examples of what you can accomplish with it
 - Do NOT explain how to install it, do NOT give technical commands
 - Create curiosity and desire: the reader should think "I want this"
-- End EXACTLY with this CTA (only adapt the skill name):
-  "💬 If you want me to walk you through the install, comment {skill['name']} below and I'll send you my free guide."
+- End EXACTLY with this CTA, replacing [KEYWORD] with a short natural word that captures the skill's topic (e.g. "SEO" for an SEO skill, "OSINT" for an OSINT skill, "SECURITY" for a file security skill, "PENTEST" for a pentest skill):
+  "💬 If you want me to walk you through the install, comment [KEYWORD] below and I'll send you my free guide."
 - 2-3 emojis, no more
 - 150-250 words max
 - Plain text only, no markdown
