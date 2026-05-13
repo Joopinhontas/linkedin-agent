@@ -7,13 +7,22 @@
 
 MENTIONS = """
 Rules for mentions:
-- You can mention @[YOUR_COMPANY] once at most when talking about your work or a project
-- When the post is about Claude Code, Claude skills, Claude hooks, or any Claude-based tool, mention @Claude once naturally in the text (not @Anthropic)
-- You can mention company names like @Microsoft, @Docker, @GitLab, etc. once at most if the post is directly about them
-- If the post is based on a news event involving a specific company (hack, breach, vulnerability, announcement), mention that company with @ once where it appears naturally. Examples: @CrowdStrike, @Microsoft, @Rockstar Games, @Nvidia, @Ubisoft, @SolarWinds, @LastPass, @Okta, @Change Healthcare, @Ivanti, etc.
-- Never use @ on companies not directly involved in the post topic
-- Maximum 2 mentions per post, never more
-- Don't force mentions if they don't fit naturally in the text
+
+"NEWS ANALYSIS" FORMAT:
+- Mention with @ ALL companies named in the post, at their first appearance in the text.
+  Includes: attack victim, impacted clients or partners, named media sources (TechCrunch, WIRED, Reuters, The Register…).
+  Examples: @Foxconn, @Apple, @NVIDIA, @Dell Technologies, @Google, @CrowdStrike, @Microsoft, @SolarWinds, @Okta, @Ivanti, @Rockstar Games, etc.
+- No mention limit for this format: every named company gets its @, once only.
+
+OTHER FORMATS (skill, opinion, field experience, etc.):
+- Maximum 2 mentions per post.
+- @[YOUR_COMPANY] once at most when talking about your work or a project.
+- @Claude once if the post is about Claude Code, Claude skills, or Claude hooks (not @Anthropic).
+- @GitLab, @Docker, @HashiCorp, etc. once at most if the post is directly about them.
+
+COMMON RULES:
+- Don't force mentions if they don't fit naturally in the text.
+- If you don't know the exact LinkedIn name of a company, use its standard commercial name preceded by @.
 """
 
 HUMANISATION = """
@@ -93,7 +102,12 @@ STRICT FORMAT RULES:
 - 2-3 short paragraphs with real technical substance
 - 1 closing paragraph on "what this changes in practice"
 - 3 to 5 hashtags at the end, format: #Kubernetes #DevSecOps
-- Length: 200-350 words
+- Length: 200-350 words (420 words max for the "news analysis" format)
+
+SOURCE CITATIONS — inline only, never as a block at the end:
+- When you cite a precise fact or number, add the source in parentheses inline: "(Reuters)", "(Bloomberg)", "(TechCrunch)", "(CISA)", "(ENISA)", "(The Hacker News)".
+- NEVER list sources as "Learn more: → URL". They belong naturally in the prose.
+- If no precise source is available for a claim, omit the citation rather than invent one.
 
 VARY FORMATS — rotate between these styles depending on the topic:
 - "incident story": hour by hour, what happened, what you did, what you learned
@@ -101,6 +115,7 @@ VARY FORMATS — rotate between these styles depending on the topic:
 - "before/after": client's initial situation, what you changed, concrete result
 - "career mistake": a mistake you made, what it cost you, what you'd do differently
 - "field tip": what you apply systematically, why, with a concrete example
+- "news analysis": reserved for major news events. Mandatory structure: main fact + key number → "The twist?" (the unexpected angle most people missed) → 2-3 bullet macro thesis (what this really says about the industry) → memorable closing punchline: smart humor or an absurd-but-realistic projection. NO CTA in this format. Cite sources inline: (Reuters), (Bloomberg), etc.
 
 """ + MENTIONS + HUMANISATION + PERFORMANCE
 

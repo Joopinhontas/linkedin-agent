@@ -49,7 +49,16 @@ def fetch_trending_topic() -> str | None:
     ]
     skip_keywords = [
         "what is", "definition", "how to", "guide",
-        "best practices", "tips", "tutorial", "introduction", "overview"
+        "best practices", "tips", "tutorial", "introduction", "overview",
+        # sports / off-topic
+        "nba", "nfl", "nhl", "mlb", "fifa", "playoff", "champion", "league",
+        "football", "basketball", "baseball", "tennis", "golf", "soccer",
+        "election", "vote", "weather", "recipe",
+    ]
+    require_keywords = [
+        "hack", "breach", "attack", "ransomware", "malware", "vulnerability",
+        "cve", "exploit", "leak", "data", "security", "cyber", "phishing",
+        "zero-day", "zero day", "backdoor", "botnet", "ddos", "infosec",
     ]
     try:
         with DDGS() as ddgs:
@@ -57,7 +66,11 @@ def fetch_trending_topic() -> str | None:
                 results = list(ddgs.news(query, max_results=5, timelimit="w"))
                 for r in results:
                     title = r.get("title", "").lower()
+                    body_low = r.get("body", "").lower()
+                    combined = title + " " + body_low
                     if any(kw in title for kw in skip_keywords):
+                        continue
+                    if not any(kw in combined for kw in require_keywords):
                         continue
                     title_raw = r.get("title", "")
                     body = r.get("body", "")[:300]
@@ -127,11 +140,10 @@ def fetch_claude_skill() -> dict | None:
 
 
 def pick_topic(history: list) -> str:
-    # Priority 1 (~25% of runs): trending Claude skill from GitHub
-    if random.random() < 0.25:
-        skill = fetch_claude_skill()
-        if skill:
-            return f"{SKILL_PREFIX}{skill['name']}|{skill['url']}|{skill['title']}|{skill['description']}"
+    # Priority 1: trending Claude skill (always tried first)
+    skill = fetch_claude_skill()
+    if skill:
+        return f"{SKILL_PREFIX}{skill['name']}|{skill['url']}|{skill['title']}|{skill['description']}"
 
     # Priority 2: real news event from this week
     trending = fetch_trending_topic()
@@ -155,19 +167,87 @@ def search_sources(topic: str) -> list:
             if is_news:
                 raw = topic.split("Context:")[0].replace("this week's news: ", "").strip("'\" ()")
                 query = raw.split(".")[0][:120]
-                results = list(ddgs.text(query, max_results=2))
+                results = list(ddgs.text(query, max_results=5))
             else:
                 results = list(ddgs.text(
                     topic + " site:kubernetes.io OR site:cve.mitre.org OR site:thehackernews.com OR site:blog.gitguardian.com OR site:grafana.com OR site:cloud.google.com OR site:docs.microsoft.com OR site:securityweek.com",
-                    max_results=2
+                    max_results=3
                 ))
             sources = []
             for r in results:
-                sources.append({"title": r.get("title", ""), "url": r.get("href", "")})
+                sources.append({"title": r.get("title", ""), "url": r.get("href", ""), "body": r.get("body", "")[:300]})
             return sources
     except Exception as e:
         print(f"Source search failed: {e}")
         return []
+
+
+def fetch_og_image(url: str) -> tuple[bytes, str] | None:
+    """Fetch the Open Graph image from a news article. Returns (bytes, mime_type) or None."""
+    try:
+        r = requests.get(url, timeout=8, headers={"User-Agent": "Mozilla/5.0"})
+        if r.status_code != 200:
+            return None
+        match = re.search(
+            r'<meta[^>]+property=["\']og:image["\'][^>]+content=["\']([^"\']+)["\']', r.text
+        ) or re.search(
+            r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+property=["\']og:image["\']', r.text
+        )
+        if not match:
+            return None
+        img_url = match.group(1)
+        if img_url.startswith("//"):
+            img_url = "https:" + img_url
+        img_r = requests.get(img_url, timeout=8, headers={"User-Agent": "Mozilla/5.0"})
+        mime = img_r.headers.get("content-type", "image/jpeg").split(";")[0]
+        if img_r.status_code == 200 and mime.startswith("image/"):
+            return img_r.content, mime
+    except Exception as e:
+        print(f"OG image fetch failed: {e}")
+    return None
+
+
+def svg_to_png(svg_path: Path) -> Path | None:
+    """Convert SVG to PNG using cairosvg. Returns PNG path or None."""
+    try:
+        import cairosvg
+        png_path = svg_path.with_suffix(".png")
+        cairosvg.svg2png(url=str(svg_path), write_to=str(png_path), scale=2)
+        return png_path
+    except Exception as e:
+        print(f"SVG→PNG conversion failed: {e}")
+    return None
+
+
+def upload_image_to_linkedin(image_bytes: bytes, mime_type: str, token: str, urn: str) -> str | None:
+    """Upload an image to LinkedIn. Returns asset URN or None on failure."""
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+        "X-Restli-Protocol-Version": "2.0.0"
+    }
+    reg = requests.post(
+        "https://api.linkedin.com/v2/assets?action=registerUpload",
+        headers=headers,
+        json={
+            "registerUploadRequest": {
+                "recipes": ["urn:li:digitalmediaRecipe:feedshare-image"],
+                "owner": urn,
+                "serviceRelationships": [{"relationshipType": "OWNER", "identifier": "urn:li:userGeneratedContent"}]
+            }
+        }
+    )
+    if reg.status_code != 200:
+        print(f"Image register failed: {reg.status_code} {reg.text[:200]}")
+        return None
+    data = reg.json()
+    upload_url = data["value"]["uploadMechanism"]["com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest"]["uploadUrl"]
+    asset_urn = data["value"]["asset"]
+    up = requests.put(upload_url, data=image_bytes, headers={"Authorization": f"Bearer {token}", "Content-Type": mime_type})
+    if up.status_code not in (200, 201):
+        print(f"Image upload failed: {up.status_code}")
+        return None
+    return asset_urn
 
 
 def generate_skill_post(skill: dict) -> str:
@@ -186,8 +266,8 @@ STRICT RULES:
 - Give 2-3 concrete, impressive examples of what you can accomplish with it
 - Do NOT explain how to install it, do NOT give technical commands
 - Create curiosity and desire: the reader should think "I want this"
-- End EXACTLY with this CTA (only adapt the skill name):
-  "💬 If you want me to walk you through the install, comment {skill['name']} below and I'll send you my free guide."
+- End EXACTLY with this CTA, replacing [KEYWORD] with a short natural word that captures the skill's topic (e.g. "SEO" for an SEO skill, "OSINT" for an OSINT skill, "SECURITY" for a file security skill, "PENTEST" for a pentest skill):
+  "💬 If you want me to walk you through the install, comment [KEYWORD] below and I'll send you my free guide."
 - 2-3 emojis, no more
 - 150-250 words max
 - Plain text only, no markdown
@@ -288,6 +368,161 @@ Output only the Markdown content."""
     return message.content[0].text
 
 
+def get_skill_svg_scenarios(skill: dict) -> dict | None:
+    """Ask Claude for 2 concrete usage scenarios for the animated SVG demo."""
+    import json, re
+    prompt = f"""Claude Code skill to demo:
+Name: {skill['name']}
+Description: {skill['description']}
+
+Return ONLY a JSON object with 2 usage scenarios for an animated terminal demo.
+Keep all text under 52 characters. Use English.
+Types: "error" (red), "warning" (orange), "info" (gray), "success" (green).
+
+{{
+  "s1_command": "> user command for scenario 1",
+  "s1_status": "[{skill['name']}] running checks...",
+  "s1_lines": [
+    {{"text": "result line 1", "type": "error|warning|info"}},
+    {{"text": "result line 2", "type": "error|warning|info"}},
+    {{"text": "result line 3", "type": "error|warning|info"}}
+  ],
+  "s1_summary": "summary of findings",
+  "s2_command": "> fix/action command for scenario 2",
+  "s2_status": "applying fixes...",
+  "s2_lines": [
+    {{"text": "result line 1", "type": "success"}},
+    {{"text": "result line 2", "type": "success"}},
+    {{"text": "result line 3", "type": "success"}}
+  ],
+  "s2_summary": "final success summary"
+}}
+
+Return only the JSON."""
+    try:
+        msg = client.messages.create(
+            model="claude-opus-4-5",
+            max_tokens=500,
+            temperature=0.3,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        text = msg.content[0].text.strip()
+        match = re.search(r'\{.*\}', text, re.DOTALL)
+        return json.loads(match.group() if match else text)
+    except Exception as e:
+        print(f"SVG scenarios generation failed: {e}")
+        return None
+
+
+def generate_skill_svg(skill: dict, d: dict) -> str:
+    """Builds the animated terminal SVG demo for a skill."""
+    from xml.sax.saxutils import escape as xe
+
+    COLOR_MAP = {
+        "error": "#f85149", "warning": "#e3b341",
+        "info": "#8b949e",  "success": "#3fb950",
+    }
+
+    def txt(y, content, color, kt):
+        return (
+            f'    <text x="20" y="{y}" fill="{color}" opacity="0">\n'
+            f'      <tspan>{xe(str(content))}</tspan>\n'
+            f'      <animate attributeName="opacity" dur="18s" repeatCount="indefinite"\n'
+            f'        keyTimes="0;{kt};1" values="0;1;1" calcMode="discrete"/>\n'
+            f'    </text>'
+        )
+
+    def sep(y, kt):
+        return txt(y, "─" * 50, "#21262d", kt)
+
+    l1 = [l.get("text", "") for l in d.get("s1_lines", [{}, {}, {}])]
+    c1 = [COLOR_MAP.get(l.get("type", "info"), "#8b949e") for l in d.get("s1_lines", [{}, {}, {}])]
+    l2 = [l.get("text", "") for l in d.get("s2_lines", [{}, {}, {}])]
+    while len(l1) < 3: l1.append(""); c1.append("#8b949e")
+    while len(l2) < 3: l2.append("")
+
+    sn      = xe(skill.get("name", "skill"))
+    s1_cmd  = xe(d.get("s1_command", "> run the skill"))
+    s1_stat = xe(d.get("s1_status",  "Processing..."))
+    s1_sum  = xe(d.get("s1_summary", "Done"))
+    s2_cmd  = xe(d.get("s2_command", "> apply fixes"))
+    s2_stat = xe(d.get("s2_status",  "Applying fixes..."))
+    s2_sum  = xe(d.get("s2_summary", "✓ All done"))
+
+    return f'''<svg viewBox="0 0 700 290" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <style>text {{ font-family: 'SF Mono','Menlo','Monaco','Consolas','Courier New',monospace; font-size: 12.5px; }}</style>
+    <clipPath id="cmd1">
+      <rect x="20" y="51" width="0" height="18">
+        <animate attributeName="width" dur="18s" repeatCount="indefinite"
+          keyTimes="0;0.001;0.065;1" values="0;0;82;82" calcMode="linear"/>
+      </rect>
+    </clipPath>
+  </defs>
+  <rect width="700" height="290" rx="10" fill="#0d1117" stroke="#30363d" stroke-width="1"/>
+  <rect width="700" height="34" rx="10" fill="#161b22"/>
+  <rect y="10" width="700" height="24" fill="#161b22"/>
+  <circle cx="20" cy="17" r="5.5" fill="#ff5f56"/>
+  <circle cx="38" cy="17" r="5.5" fill="#ffbd2e"/>
+  <circle cx="56" cy="17" r="5.5" fill="#27c93f"/>
+  <text x="350" y="22" text-anchor="middle" font-size="12" fill="#8b949e">{sn} — claude</text>
+
+  <!-- SCENE 1 -->
+  <g>
+    <animate attributeName="opacity" dur="18s" repeatCount="indefinite"
+      keyTimes="0;0.44;0.50;1" values="1;1;0;0" calcMode="linear"/>
+    <text x="20" y="66" fill="#58a6ff" clip-path="url(#cmd1)">$ claude</text>
+    <rect y="52" width="8" height="15" fill="#c9d1d9">
+      <animate attributeName="x" dur="18s" repeatCount="indefinite"
+        keyTimes="0;0.001;0.065;1" values="20;20;102;102" calcMode="linear"/>
+      <animate attributeName="opacity" dur="18s" repeatCount="indefinite"
+        keyTimes="0;0.075;0.076;1" values="1;1;0;0" calcMode="discrete"/>
+    </rect>
+    <text x="20" y="88" fill="#c9d1d9" opacity="0">
+      <tspan>{s1_cmd}</tspan>
+      <animate attributeName="opacity" dur="18s" repeatCount="indefinite"
+        keyTimes="0;0.10;1" values="0;1;1" calcMode="discrete"/>
+    </text>
+    <text x="20" y="110" fill="#e3b341" opacity="0">
+      <tspan>{s1_stat}</tspan>
+      <animate attributeName="opacity" dur="18s" repeatCount="indefinite"
+        keyTimes="0;0.16;1" values="0;1;1" calcMode="discrete"/>
+    </text>
+{sep(127, "0.20")}
+{txt(147, l1[0], c1[0], "0.24")}
+{txt(165, l1[1], c1[1], "0.28")}
+{txt(183, l1[2], c1[2], "0.32")}
+{sep(200, "0.36")}
+{txt(220, s1_sum, "#f85149", "0.40")}
+  </g>
+
+  <!-- SCENE 2 -->
+  <g opacity="0">
+    <animate attributeName="opacity" dur="18s" repeatCount="indefinite"
+      keyTimes="0;0.49;0.50;0.93;1" values="0;0;1;1;0" calcMode="linear"/>
+    <text x="20" y="66" fill="#58a6ff">$ claude</text>
+    <text x="20" y="88" fill="#c9d1d9" opacity="0">
+      <tspan>{s2_cmd}</tspan>
+      <animate attributeName="opacity" dur="18s" repeatCount="indefinite"
+        keyTimes="0;0.54;1" values="0;1;1" calcMode="discrete"/>
+    </text>
+    <text x="20" y="110" fill="#484f58" opacity="0">
+      <tspan>{s2_stat}</tspan>
+      <animate attributeName="opacity" dur="18s" repeatCount="indefinite"
+        keyTimes="0;0.58;1" values="0;1;1" calcMode="discrete"/>
+    </text>
+{sep(127, "0.61")}
+{txt(147, l2[0], "#3fb950", "0.64")}
+{txt(165, l2[1], "#3fb950", "0.68")}
+{txt(183, l2[2], "#3fb950", "0.72")}
+{sep(200, "0.76")}
+{txt(220, s2_sum, "#3fb950", "0.80")}
+  </g>
+
+  <text x="680" y="282" text-anchor="end" font-size="10" fill="#21262d">{sn}</text>
+</svg>'''
+
+
 def generate_post(topic: str, history: list) -> str:
     if topic.startswith(SKILL_PREFIX):
         parts = topic[len(SKILL_PREFIX):].split("|", 3)
@@ -306,21 +541,33 @@ def generate_post(topic: str, history: list) -> str:
         "Terraform", "Ansible", "observability", "Grafana", "security",
         "cloud", "backup", "secret", "RBAC", "ArgoCD", "IaC", "monitoring"
     ]
-    needs_sources = topic.startswith("this week's news") or any(kw.lower() in topic.lower() for kw in topics_with_sources)
+    is_news = topic.startswith("this week's news")
+    needs_sources = is_news or any(kw.lower() in topic.lower() for kw in topics_with_sources)
 
-    sources_block = ""
+    sources_context = ""
     if needs_sources:
         sources = search_sources(topic)
         if sources:
-            sources_block = "\n\nFurther reading:\n"
+            sources_context = "\n\nFacts and sources available (cite inline in parentheses when used):\n"
             for s in sources:
-                sources_block += f"-> {s['title']}: {s['url']}\n"
+                name = s["url"].split("/")[2].replace("www.", "").split(".")[0].capitalize()
+                sources_context += f"- [{name}] {s['title']}: {s['body']}\n"
 
     today = datetime.now().strftime("%A %d %B %Y")
 
+    format_instruction = ""
+    if is_news:
+        format_instruction = """
+Use the "news analysis" format MANDATORY:
+1. Main fact + key number as hook
+2. "The twist?" — the unexpected angle most people missed
+3. 2-3 bullet macro thesis (what this really says about the industry)
+4. Memorable closing punchline: smart humor or an absurd-but-realistic projection
+NO CTA. Length: 300-420 words. Cite sources inline: (Reuters), (Bloomberg), (TechCrunch), etc."""
+
     message = client.messages.create(
         model="claude-opus-4-5",
-        max_tokens=1024,
+        max_tokens=1400,
         temperature=0.9,
         system=SYSTEM_PROMPT,
         messages=[{
@@ -330,8 +577,8 @@ Generate a LinkedIn post about: {topic}
 
 Recent posts (do not repeat these angles):
 {recent}
-
-{f"At the end of the post, append this block exactly as-is: {sources_block}" if sources_block else ""}
+{sources_context}
+{format_instruction}
 
 Output only the post text, ready to publish."""
         }]
@@ -339,21 +586,27 @@ Output only the post text, ready to publish."""
     return message.content[0].text
 
 
-def publish_to_linkedin(post_text: str) -> bool:
+def publish_to_linkedin(post_text: str, image_path: Path | None = None) -> bool:
     token = os.getenv("LINKEDIN_ACCESS_TOKEN")
-    urn = os.getenv("LINKEDIN_PERSON_URN")
+    urn   = os.getenv("LINKEDIN_PERSON_URN")
 
-    payload = {
-        "author": urn,
-        "lifecycleState": "PUBLISHED",
-        "specificContent": {
-            "com.linkedin.ugc.ShareContent": {
-                "shareCommentary": {"text": post_text},
-                "shareMediaCategory": "NONE"
-            }
-        },
-        "visibility": {"com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC"}
-    }
+    asset_urn = None
+    if image_path and image_path.exists():
+        mime = "image/png" if image_path.suffix.lower() == ".png" else "image/jpeg"
+        asset_urn = upload_image_to_linkedin(image_path.read_bytes(), mime, token, urn)
+        if asset_urn:
+            print(f"✓ Image uploaded: {image_path.name}")
+        else:
+            print("⚠ Image upload failed — posting without image")
+
+    if asset_urn:
+        media = {
+            "shareCommentary": {"text": post_text},
+            "shareMediaCategory": "IMAGE",
+            "media": [{"status": "READY", "media": asset_urn, "description": {"text": ""}, "title": {"text": ""}}]
+        }
+    else:
+        media = {"shareCommentary": {"text": post_text}, "shareMediaCategory": "NONE"}
 
     r = requests.post(
         "https://api.linkedin.com/v2/ugcPosts",
@@ -362,12 +615,18 @@ def publish_to_linkedin(post_text: str) -> bool:
             "Content-Type": "application/json",
             "X-Restli-Protocol-Version": "2.0.0"
         },
-        json=payload
+        json={
+            "author": urn,
+            "lifecycleState": "PUBLISHED",
+            "specificContent": {"com.linkedin.ugc.ShareContent": media},
+            "visibility": {"com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC"}
+        }
     )
     return r.status_code == 201
 
 
 QUEUE_FILE = Path("queue.md")
+PENDING_FILE = Path("pending.md")
 
 
 def pop_queue() -> str | None:
@@ -433,7 +692,37 @@ Output only the final post text, ready to publish."""
     post = generate_post(topic, history)
     print(f"\n--- GENERATED POST ---\n{post}\n---")
 
-    # If it's a skill topic, also generate the INSTALL guide
+    # If a post is already pending validation, don't overwrite it.
+    if PENDING_FILE.exists():
+        print("⚠ pending.md already exists — skipping to avoid overwriting a post awaiting approval.")
+        print("  Publish or discard the pending post via Discord or: python post_now.py --from-pending")
+        return
+
+    # News-based posts are held for manual review — a news story can be false
+    # or unverified. Publish manually with: python post_now.py --from-pending
+    if topic.startswith("this week's news"):
+        og_image_path = None
+        sources = search_sources(topic)
+        if sources:
+            for s in sources:
+                result = fetch_og_image(s["url"])
+                if result:
+                    img_bytes, mime = result
+                    ext = ".jpg" if "jpeg" in mime else ".png"
+                    og_image_path = PENDING_FILE.with_suffix(ext)
+                    og_image_path.write_bytes(img_bytes)
+                    print(f"✓ OG image saved: {og_image_path.name}")
+                    break
+        PENDING_FILE.write_text(
+            f"TOPIC: {topic}\nIMAGE: {og_image_path.name if og_image_path else ''}\n\n---\n\n{post}\n",
+            encoding="utf-8"
+        )
+        print(f"\n⚠ News-based post — publication suspended.")
+        print(f"  Verify the facts, then publish with: python post_now.py --from-pending")
+        return
+
+    # If it's a skill topic, also generate the INSTALL guide + demo SVG + PNG for LinkedIn
+    image_path = None
     if topic.startswith(SKILL_PREFIX):
         parts = topic[len(SKILL_PREFIX):].split("|", 3)
         skill = {
@@ -449,7 +738,17 @@ Output only the final post text, ready to publish."""
         install_path.write_text(guide, encoding="utf-8")
         print(f"✓ Install guide generated: {install_path}")
 
-    success = publish_to_linkedin(post)
+        scenarios = get_skill_svg_scenarios(skill)
+        if scenarios:
+            svg_content = generate_skill_svg(skill, scenarios)
+            svg_path = SKILLS_DIR / f"demo-{safe_name}.svg"
+            svg_path.write_text(svg_content, encoding="utf-8")
+            print(f"✓ Demo SVG generated: {svg_path}")
+            image_path = svg_to_png(svg_path)
+            if image_path:
+                print(f"✓ PNG for LinkedIn: {image_path.name}")
+
+    success = publish_to_linkedin(post, image_path)
     if success:
         save_to_history(post, topic)
         print("✓ Published to LinkedIn")
