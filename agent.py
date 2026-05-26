@@ -266,8 +266,8 @@ STRICT RULES:
 - Give 2-3 concrete, impressive examples of what you can accomplish with it
 - Do NOT explain how to install it, do NOT give technical commands
 - Create curiosity and desire: the reader should think "I want this"
-- End EXACTLY with this CTA, replacing [KEYWORD] with a short natural word that captures the skill's topic (e.g. "SEO" for an SEO skill, "OSINT" for an OSINT skill, "SECURITY" for a file security skill, "PENTEST" for a pentest skill):
-  "💬 If you want me to walk you through the install, comment [KEYWORD] below and I'll send you my free guide."
+- End EXACTLY with this CTA (do not change the text):
+  "💬 The full guide is in the first comment."
 - 2-3 emojis, no more
 - 150-250 words max
 - Plain text only, no markdown
@@ -738,15 +738,23 @@ Output only the final post text, ready to publish."""
         install_path.write_text(guide, encoding="utf-8")
         print(f"✓ Install guide generated: {install_path}")
 
-        scenarios = get_skill_svg_scenarios(skill)
-        if scenarios:
-            svg_content = generate_skill_svg(skill, scenarios)
-            svg_path = SKILLS_DIR / f"demo-{safe_name}.svg"
-            svg_path.write_text(svg_content, encoding="utf-8")
-            print(f"✓ Demo SVG generated: {svg_path}")
-            image_path = svg_to_png(svg_path)
-            if image_path:
-                print(f"✓ PNG for LinkedIn: {image_path.name}")
+        og_result = fetch_og_image(skill["url"])
+        if og_result:
+            img_bytes, mime = og_result
+            ext = ".jpg" if "jpeg" in mime else ".png"
+            image_path = SKILLS_DIR / f"preview-{safe_name}{ext}"
+            image_path.write_bytes(img_bytes)
+            print(f"✓ GitHub OG image: {image_path.name}")
+        else:
+            scenarios = get_skill_svg_scenarios(skill)
+            if scenarios:
+                svg_content = generate_skill_svg(skill, scenarios)
+                svg_path = SKILLS_DIR / f"demo-{safe_name}.svg"
+                svg_path.write_text(svg_content, encoding="utf-8")
+                print(f"✓ Demo SVG generated: {svg_path}")
+                image_path = svg_to_png(svg_path)
+                if image_path:
+                    print(f"✓ PNG fallback: {image_path.name}")
 
     success = publish_to_linkedin(post, image_path)
     if success:
