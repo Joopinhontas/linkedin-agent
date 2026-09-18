@@ -17,6 +17,8 @@ load_dotenv()
 
 CLIENT_ID = os.getenv("LINKEDIN_CLIENT_ID")
 CLIENT_SECRET = os.getenv("LINKEDIN_CLIENT_SECRET")
+# If port 8000 is already used by something else on your machine (a Docker container is a
+# common culprit), change it here AND in the redirect URL registered in your LinkedIn app.
 REDIRECT_URI = "http://localhost:8000/callback"
 SCOPES = "openid profile w_member_social"
 

@@ -22,10 +22,10 @@
   <circle cx="56" cy="17" r="5.5" fill="#27c93f"/>
 
   <!-- Window title -->
-  <text x="350" y="22" text-anchor="middle" font-size="12" fill="#8b949e">linkedin-agent — bash</text>
+  <text x="350" y="22" text-anchor="middle" font-size="12" fill="#8b949e">linkedin-agent: bash</text>
 
   <!-- ═══════════════════════════════════════════ -->
-  <!-- SCENE 1 : Trending news → publish (0–50%)  -->
+  <!-- SCENE 1: Trending news, held for review (0-50%)  -->
   <!-- ═══════════════════════════════════════════ -->
   <g>
     <animate attributeName="opacity" dur="16s" repeatCount="indefinite"
@@ -67,21 +67,21 @@
 
     <!-- Post line 1 -->
     <text x="20" y="156" fill="#c9d1d9" opacity="0">
-      <tspan xml:space="preserve">3 géants du cloud piratés en quelques semaines.</tspan>
+      <tspan xml:space="preserve">Three cloud providers breached in a matter of weeks.</tspan>
       <animate attributeName="opacity" dur="16s" repeatCount="indefinite"
         keyTimes="0;0.20;1" values="0;1;1" calcMode="discrete"/>
     </text>
 
     <!-- Post line 2 -->
     <text x="20" y="174" fill="#c9d1d9" opacity="0">
-      <tspan xml:space="preserve">Et honnêtement, ça ne me surprend pas.</tspan>
+      <tspan xml:space="preserve">Honestly, none of this surprises me anymore.</tspan>
       <animate attributeName="opacity" dur="16s" repeatCount="indefinite"
         keyTimes="0;0.22;1" values="0;1;1" calcMode="discrete"/>
     </text>
 
     <!-- ellipsis -->
     <text x="20" y="192" fill="#484f58" opacity="0">
-      <tspan xml:space="preserve">[...] 287 words · 4 hashtags</tspan>
+      <tspan xml:space="preserve">[...] 312 words · 4 hashtags</tspan>
       <animate attributeName="opacity" dur="16s" repeatCount="indefinite"
         keyTimes="0;0.26;1" values="0;1;1" calcMode="discrete"/>
     </text>
@@ -93,16 +93,16 @@
         keyTimes="0;0.28;1" values="0;1;1" calcMode="discrete"/>
     </text>
 
-    <!-- Published -->
-    <text x="20" y="234" fill="#3fb950" opacity="0">
-      <tspan xml:space="preserve">✓ Published to LinkedIn</tspan>
+    <!-- Held for review (news posts are never auto-published) -->
+    <text x="20" y="234" fill="#e3b341" opacity="0">
+      <tspan xml:space="preserve">⚠ News-based post, held for review → sent to Discord</tspan>
       <animate attributeName="opacity" dur="16s" repeatCount="indefinite"
         keyTimes="0;0.33;1" values="0;1;1" calcMode="discrete"/>
     </text>
   </g>
 
   <!-- ══════════════════════════════════════════════ -->
-  <!-- SCENE 2 : queue.md → Claude → publish (50–100%) -->
+  <!-- SCENE 2: queue.md draft, auto-published (50-100%) -->
   <!-- ══════════════════════════════════════════════ -->
   <g opacity="0">
     <animate attributeName="opacity" dur="16s" repeatCount="indefinite"
@@ -120,7 +120,7 @@
 
     <!-- queue entry -->
     <text x="20" y="118" fill="#484f58" opacity="0">
-      <tspan xml:space="preserve">  ✎  "Hack Rockstar - angle sécurité studios AAA"</tspan>
+      <tspan xml:space="preserve">  ✎  "Studio hack - security angle for AAA teams"</tspan>
       <animate attributeName="opacity" dur="16s" repeatCount="indefinite"
         keyTimes="0;0.57;1" values="0;1;1" calcMode="discrete"/>
     </text>
@@ -141,21 +141,21 @@
 
     <!-- Post line 1 -->
     <text x="20" y="178" fill="#c9d1d9" opacity="0">
-      <tspan xml:space="preserve">Un adolescent de 17 ans a mis à genoux</tspan>
+      <tspan xml:space="preserve">A 17-year-old just walked straight into</tspan>
       <animate attributeName="opacity" dur="16s" repeatCount="indefinite"
         keyTimes="0;0.65;1" values="0;1;1" calcMode="discrete"/>
     </text>
 
     <!-- Post line 2 -->
     <text x="20" y="196" fill="#c9d1d9" opacity="0">
-      <tspan xml:space="preserve">l'un des studios les plus secrets du jeu vidéo.</tspan>
+      <tspan xml:space="preserve">one of gaming's most secretive studios.</tspan>
       <animate attributeName="opacity" dur="16s" repeatCount="indefinite"
         keyTimes="0;0.67;1" values="0;1;1" calcMode="discrete"/>
     </text>
 
     <!-- ellipsis -->
     <text x="20" y="214" fill="#484f58" opacity="0">
-      <tspan xml:space="preserve">[...] 312 words · @Rockstar Games · 4 hashtags</tspan>
+      <tspan xml:space="preserve">[...] 298 words · 4 hashtags</tspan>
       <animate attributeName="opacity" dur="16s" repeatCount="indefinite"
         keyTimes="0;0.70;1" values="0;1;1" calcMode="discrete"/>
     </text>
