@@ -3,7 +3,6 @@
 # Usage:
 #   python post_now.py "your topic here"
 #   python post_now.py --from-pending
-
 import sys
 from pathlib import Path
 from agent import generate_post, publish_to_linkedin, load_history, save_to_history
@@ -18,26 +17,44 @@ def post_from_pending():
 
     content = PENDING_FILE.read_text(encoding="utf-8")
     parts = content.split("---\n\n", 1)
-    topic_line = parts[0].strip()
+    header = parts[0].strip()
     post = parts[1].strip() if len(parts) > 1 else content.strip()
-    topic = topic_line.replace("TOPIC:", "").strip()
+
+    topic = ""
+    image_name = ""
+    for line in header.splitlines():
+        if line.startswith("TOPIC:"):
+            topic = line.replace("TOPIC:", "").strip()
+        if line.startswith("IMAGE:"):
+            image_name = line.replace("IMAGE:", "").strip()
+
+    image_path = None
+    if image_name:
+        candidate = PENDING_FILE.parent / image_name
+        if candidate.exists():
+            image_path = candidate
+            print(f"✓ Image found: {candidate}")
 
     print(f"\nSource: {topic[:120]}")
     print(f"\n--- PENDING POST ---\n{post}\n---")
 
     confirm = input("\nPublish this post? (y/n): ")
     if confirm.lower() == "y":
-        success = publish_to_linkedin(post)
+        success = publish_to_linkedin(post, image_path)
         if success:
             save_to_history(post, topic)
             PENDING_FILE.unlink()
-            print("✓ Published to LinkedIn — pending.md removed")
+            if image_path and image_path.exists():
+                image_path.unlink()
+            print("✓ Published to LinkedIn, pending.md removed")
         else:
-            print("✗ Publication failed — pending.md preserved")
+            print("✗ Publication failed, pending.md preserved")
     else:
         discard = input("Discard the pending post? (y/n): ")
         if discard.lower() == "y":
             PENDING_FILE.unlink()
+            if image_path and image_path.exists():
+                image_path.unlink()
             print("Post discarded.")
         else:
             print("Post kept in pending.md.")

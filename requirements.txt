@@ -2,5 +2,4 @@ anthropic
 requests
 python-dotenv
 ddgs
-cairosvg
 discord.py>=2.0

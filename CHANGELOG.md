@@ -1,5 +1,55 @@
 # Changelog
 
+## [3.0.0] - 2026-09-18
+
+### Added
+- **News vs. personal/opinion alternation** (`agent.py`): `pick_topic()` now forces a
+  personal/opinion topic from `TOPICS` whenever the previous run published a news post, and
+  vice versa. Without this, real news is found almost every time and the personal/opinion
+  topics never get picked, even though identity and opinion posts consistently reach a wider
+  audience than news commentary or product posts on the same account.
+- **Link in first comment, not in the post body** (`agent.py`): `publish_to_linkedin()` takes
+  an optional `first_comment` argument. When set, the main post is published without any link,
+  and the link is added as a separate comment right after via a new `add_first_comment()` call
+  to LinkedIn's Social Actions API. A link in the post body measurably hurts organic reach.
+- **Mandatory closing question** (`prompts.py`, `agent.py`): every generated post (news and
+  personal/opinion alike) must now end on a concrete, specific, easy-to-answer question aimed
+  at the reader's own situation. A closed punchline with no question was previously optional
+  and rarely honored, and posts without one get close to zero comments regardless of quality.
+- **Image size cap for OG images** (`agent.py`): `fetch_og_image()` now rejects images over 8
+  MB. An oversized image silently broke Discord delivery for the corresponding pending post,
+  with no retry, effectively blocking the whole approval pipeline until manually noticed.
+- **Retry without image on Discord send failure** (`discord_bot.py`): if sending the pending
+  post embed with its image fails, the bot now retries with text only instead of losing the
+  post. The "seen" watermark on `pending.md` is only set after a successful send, so a failed
+  attempt is retried on the next poll instead of being silently dropped forever.
+- **Comment reply drafting** (`discord_bot.py`): paste a comment you received on LinkedIn
+  (text or screenshot) directly in the Discord channel, and the bot replies with 3 draft
+  answers in your voice via `generate_comment_replies()`. You still copy and post the one you
+  like yourself: this is a drafting aid, not an auto-reply bot, and it never touches LinkedIn
+  on its own. Requires the "Message Content Intent" enabled for the bot; falls back to
+  post-approval-only mode if it isn't.
+- HTTP timeouts added to every LinkedIn API call (`HTTP_TIMEOUT = 15`), preventing an
+  unresponsive request from hanging the cron job indefinitely.
+- A process-local cache on `search_sources()` avoids duplicate DuckDuckGo queries between
+  post generation and OG image lookup for the same topic.
+
+### Removed
+- **Claude Code skill-teaser posts**: the whole "trending skill on GitHub" tier (skill
+  discovery, teaser post generation, install guide generation, animated SVG demo, SVG-to-PNG
+  conversion) has been removed. It added a lot of surface area for a format that, in practice,
+  underperformed compared to news and personal/opinion posts. `cairosvg` dropped from
+  `requirements.txt` as a result.
+- Unused `AUTHOR_*`, `MALT_URL`, and `GITHUB_TOKEN` variables removed from `.env.example`:
+  they only existed to support the skill-post feature above.
+
+### Fixed
+- `pending.md` guard now runs before topic selection and generation, not after, saving a
+  wasted Claude API call every time a post was already waiting for approval.
+- The demo animation in `assets/demo.svg` showed a news-based post being auto-published,
+  which contradicts the documented behavior (news posts are always held for manual review).
+  The animation now shows the actual "held for review, sent to Discord" outcome.
+
 ## [2.3.0] - 2026-05-13
 
 ### Added
