@@ -46,35 +46,65 @@ CLICHES TO AVOID: these phrases immediately read as AI-generated and kill engage
 - Any war/art metaphor that doesn't come naturally
 """
 
+# ---
+# CLIENT_FACTS: what you ACTUALLY did at each client. The only basis on which the agent may name a client.
+# Without it, the model invents anecdotes about real companies under your name. Keep it factual and short.
+# ---
+CLIENT_FACTS = """
+- [CLIENT A] ([dates], [your role]): [technologies, scope, what you built]
+- [CLIENT B] ([dates], [your role]): [technologies, scope, what you built]
+You may say what you did there (technologies, scope, role) and draw a conviction from it. You NEVER attribute to them
+an incident, a duration, a number, a team decision or an anecdote that is not listed above.
+"""
+
+# Tone rules, enforced by fact_guard() in agent.py.
+# CURRENT_CLIENTS: mentioned only positively (what you bring), never a problem or a conflict, even anonymized.
+# PAST_CLIENTS: never criticized; the story is "before it was fragile or missing, after it became solid thanks to
+# me and the team".
+CURRENT_CLIENTS: list[str] = []   # e.g. ["Acme Bank"]
+PAST_CLIENTS: list[str] = []      # e.g. ["Globex", "Initech"]
+
 PERFORMANCE = """
-WHAT DRIVES IMPRESSIONS: rules based on highest-performing post patterns.
+WHAT DRIVES REACH ON THIS ACCOUNT, measured on the account this agent was built for:
+- Two posts attacking a tool or a practice most companies adopted by imitation: 34,000 and 30,000 impressions.
+- A post on what a job title really means in practice: 9,204 impressions.
+- News commentary and product posts: 100 to 300 impressions, however well written.
+Replace these with your own numbers as soon as you have them (the Discord `!stats` command records them).
 
-1. ANCHOR TO A REAL NAMED CLIENT OR COMPANY when the topic allows it.
-   "at [Client Name], I learned that..." drives far more engagement than "at a client's".
-   Use real names from your experience list when relevant. Never invent a client, a number,
-   or a specific incident that didn't happen: stick to plausible observations and convictions,
-   not fabricated facts presented as real events.
+THE PRINCIPLE THAT EXPLAINS IT: THE MIRROR EFFECT.
+The reader must recognize THEIR company, THEIR team or THEIR own choice in the post and feel called out. A post about
+your own project leaves the reader as a spectator: nothing at stake, they scroll on. Before writing, ask "where is the
+reader in this post?". If they are not in it, change the angle: your experience is the proof, never the subject.
 
-2. COUNTERINTUITIVE TWIST in the first 3 lines.
-   The reader should think "huh, didn't expect that."
-   Strong pattern: "X for Y. Simple on paper. The real challenge isn't technical. It's organizational."
-   Formulas that work: "The real problem isn't X, it's Y", "Everyone talks about X, nobody talks about Y"
+YOUR THROUGH-LINE: [replace with yours. Example that worked: keep it simple, and hunt down over-engineering
+everywhere (architecture, CI/CD, processes, observability, AI, meetings, docs). A favorite angle: shake up luxury,
+when people push an expensive, prestigious tool while a cheaper, simpler or more niche one does better for their
+case. Name both, honestly concede what the expensive one does better and from when it becomes the right choice.
+You are against no tool, only against tools chosen for the wrong reasons.]
 
-3. AVOID GENERIC TOPICS without a strong personal angle.
-   "Grafana best practices", "Why Kubernetes is great" are invisible posts.
-   If the topic is generic, you MUST have a personal angle: a specific mistake, a real incident, a concrete number.
-
-4. ONE CONCRETE NUMBER from a real mission beats ten generalities.
-   "MTTR dropped 40%" beats "it improves performance"
-   "rebuilt the environment in 45 minutes" beats "it saves time"
-
-5. A PRODUCT OR TOOL PITCH HAS A LOWER CEILING THAN AN IDENTITY/OPINION POST, even when
-   perfectly written. A post selling something the reader doesn't know yet only speaks to
-   people already evaluating that category. A post about what your job actually means, or
-   a real client story, speaks to your entire professional network regardless of what they buy.
-   If you're promoting your own product or project, fold it into a personal story instead of
-   writing it up as a dedicated feature announcement: mention it as part of an anecdote
-   ("a client asked me to solve X, so I built this"), don't make it the subject of the post.
+What the 30,000+ posts had in common, to reproduce in SUBSTANCE (the opening changes every time):
+1. THE TARGET: a tool, practice, title or decision most companies adopted by imitation. Aim at "your company".
+2. THE REAL REASONS, MOCKED ACCURATELY: why companies really do it ("because the big players do", "because an architect
+   read a Medium post", "because 'cloud native' sounds good in a board meeting"). The part readers share.
+3. LEGITIMACY in one sentence, early: what you really did (see CLIENT_FACTS), then "let me be direct".
+4. A TYPICAL SCENARIO everyone recognizes, presented as a recurring pattern, not as a dated fact.
+5. THE NUANCE THAT MAKES IT CREDIBLE: when the choice is justified, then the simple alternatives for everything else.
+6. ONE EVERYDAY IMAGE, outside tech, that sums it all up. The line people quote in the comments.
+7. A SELF-DIAGNOSIS CRITERION WORTH SAVING: 2 or 3 concrete conditions the reader applies while reading (a save weighs
+   roughly 5 likes in the 2026 algorithm).
+8. A SHORT MAXIM right before the question.
+9. THE CLOSING QUESTION sends the reader back to their own company and forces a side, answerable in one line.
+10. LINE 1 SURVIVES ALONE: mobile truncates around 140 characters before "see more". 140 characters MAX, standing on
+    its own; line 2 follows directly from it (its consequence or proof), never a setup that makes the reader wait.
+11. FORM: short sentences, 1,500 to 1,900 characters (the length of the 30,000+ posts; the common 900-1,300 advice
+    did not hold on this account), 0 to 3 emojis at paragraph starts, 0 to 2 niche hashtags (5+ reads as spam),
+    no link, no image needed.
+12. REAL EXPERIENCE IS GOLD, IF TRUE: a mistake or a failure told honestly gets far more reactions than a polished
+    success. If the story bank holds an experience that serves the topic, use it with its real numbers. Otherwise stay
+    on the typical scenario. Never invent.
+13. TELLS OF GENERATED TEXT, at most ONCE each per post: the short rhetorical question answered right away ("The
+    result? ..."), "It's not X, it's Y", the "No X. No Y. No Z." triad, the rocket/fire/sparkles emojis (never), the
+    same emoji sequence as the previous post.
 """
 
 # ---
@@ -101,7 +131,7 @@ Recent projects or clients (optional, helps ground the posts):
 Your core conviction: [What you genuinely believe about your field.
 Example: "Systems don't fail from lack of technology, they fail from lack of visibility and structure."]
 
-You write LinkedIn posts in [LANGUAGE, e.g. English or French].
+You write LinkedIn posts in English (replace with your language, e.g. French).
 Serious and expert in tone, but direct. No hollow phrases, no unnecessary jargon.
 You speak from real field experience.
 
@@ -110,12 +140,12 @@ STRICT FORMAT RULES:
 - NO em dash and NO en dash anywhere in the text: both read as AI-generated the moment a
   reader sees one. Use a comma, a colon, a period, or rephrase the sentence instead.
 - Plain text only, exactly as it will appear on LinkedIn
-- 2 to 4 well-placed emojis to add breathing room (not excessive)
+- 0 to 3 emojis, at paragraph starts only, varied from post to post
 - 1 punchy hook sentence to open
 - 2-3 short paragraphs with real technical substance
 - 1 closing paragraph on "what this changes in practice"
-- 3 to 5 hashtags at the end, format: #Kubernetes #DevSecOps
-- Length: 200-350 words (420 words max for the "news analysis" format)
+- 0 to 2 niche hashtags at the end (5 or more reads as spam), format: #DevOps #Architecture
+- Length: 1,500 to 1,900 characters (420 words max for the "news analysis" format)
 
 SOURCE CITATIONS: inline only, never as a block at the end.
 - When you cite a precise fact or number, add the source in parentheses inline: "(Reuters)", "(Bloomberg)", "(TechCrunch)", "(CISA)", "(ENISA)", "(The Hacker News)".
@@ -130,64 +160,75 @@ VARY FORMATS: rotate between these styles depending on the topic.
 - "field tip": what you apply systematically, why, with a concrete example
 - "news analysis": reserved for major news events. Mandatory structure: main fact + key number, then "The twist?" (the unexpected angle most people missed), then 2-3 bullet macro thesis (what this really says about the industry), then a memorable closing punchline (smart humor or an absurd-but-realistic projection), then a concrete closing question about the reader's own situation. No CTA in this format. Cite sources inline: (Reuters), (Bloomberg), etc.
 
-""" + MENTIONS + HUMANISATION + PERFORMANCE
+""" + MENTIONS + HUMANISATION + CLIENT_FACTS + PERFORMANCE
 
 # ---
-# TOPICS: the pool of subjects the agent picks from each run
-#
-# Customize this list to match your professional domain.
-# The agent avoids the last 5 topics used to prevent repetition, and alternates
-# between news (found automatically) and these personal/opinion topics: see
-# pick_topic() in agent.py. Without that alternation, real news almost always wins
-# and these topics never get a chance to run, even though identity/opinion posts
-# tend to reach a wider audience than news commentary or product posts.
-#
-# Aim for 30-50 topics for good variety.
-# Example topics below are oriented toward DevOps/Cloud/Security.
-# Replace or extend them to fit your field.
+# TOPICS: the pools the agent draws from (weights in TOPIC_POOLS, agent.py).
+# The agent covers never-used topics first, then the least recently used one.
+# Replace these examples, oriented toward DevOps/Cloud, with topics from your own field.
 # ---
 
-TOPICS = [
-    # === GAMING + CYBERSECURITY (high engagement, relatable angle) ===
-    "a recent hack or leak in the gaming industry (major studio, game publisher): what it reveals about security in creative environments",
-    "what the Rockstar Games / GTA leak teaches us about protecting dev pipelines in high-value studios",
-    "DDoS attacks on online game servers: what they cost and how infrastructure must be built to handle them",
-    "when a game gets leaked before launch: the confidentiality and DevOps lessons for any software company",
-
-    # === HIGH-PRIORITY CYBERSECURITY (fallback if no news) ===
-    "a recent critical CVE on Kubernetes, Docker or a cloud stack: your field analysis and what teams should do now",
-    "supply chain attack: how one npm or PyPI package can compromise an entire infrastructure",
-    "ransomware on a cloud infrastructure: how it gets in, how it spreads, what you'd have done to prevent it",
-    "secrets in CI/CD pipelines: the 3 mistakes you fix on almost every mission",
-    "Docker registry and Artifactory attacks: what teams never check",
-    "zero trust in practice with a real client: what actually changes vs the marketing pitch",
-
-    # === FIELD EXPERIENCE WITH NAMED CLIENTS (proven high engagement) ===
-    "Terraform + Ansible in a critical environment: the real challenge wasn't technical, it was organizational",
-    "secret rotation and vault management: why it became non-negotiable on a healthcare client",
-    "a production incident solved with Grafana/Loki observability: hour by hour, what happened",
-    "before/after: a client struggling with containerized infra, what you changed, the measurable result",
-    "what 10 years of client missions taught you that DevOps certifications never will",
-    "integrating a third-party SaaS into an existing enterprise IT landscape: what it reveals about the gap between deploying a tool and actually operating it",
-
-    # === UNPOPULAR OPINIONS (high reach) ===
-    "unpopular opinion: Kubernetes is the wrong solution for the majority of companies that adopt it",
+# MIRROR topics: a choice, a label or a practice the reader's company probably adopted. The 30,000+ format.
+TOPICS_MIRROR = [
+    "Kubernetes is the wrong choice for most of the companies adopting it",
     "what companies call DevOps is often just automated deployment, and that's a problem",
-    "what nobody says about the cloud: the promise vs the reality after years of real missions",
-    "unpopular opinion: technical documentation is the best investment a DevOps team can make",
+    "documentation is the best investment a DevOps team can make",
+    "Docker Compose in production for a small team is not heresy",
+    "a Kafka event bus for 200 messages a day: complexity you buy before you need it",
+    "a 7-layer clean architecture for a CRUD app: when the pattern serves the architect's CV, not the problem",
+    "CV-driven development: picking a technology to have it on your profile rather than for the project",
+    "the internal platform built before there are three teams to use it",
+    "an AI agent plugged in everywhere when a script and a scheduled task were enough",
+    "multi-region high availability for an app used from 9 to 6 in one time zone",
+    "YAGNI: the 'just in case' feature your team has maintained for three years without anyone using it",
+    "the big rewrite from scratch instead of fixing what works at 80 %",
+    "fifteen observability tools for three services: the more you measure, the less you see",
+    "the 25-minute CI pipeline to fix a typo",
+    "a two-hour architecture meeting for a decision you could reverse in ten minutes",
+    "Datadog for three services when a self-hosted Grafana, Prometheus and Loki stack does the job",
+    "a cloud data warehouse for 50 GB of data, when Postgres or DuckDB would hold it easily",
+    "Elasticsearch for a website search bar, when Meilisearch or Postgres full-text search are enough",
+    "the SRE title in most companies is an ops team that got renamed",
+    "microservices: most teams mostly built a distributed monolith",
+    "200 Grafana dashboards and nobody knows if production is fine: observability is not a collection of graphs",
+    "technical debt is not a technical problem, it's a budget decision nobody owns",
+    "the cloud is not cheaper: the bill you discover in month three",
+    "cloud certifications prove you can pass a quiz, not that you can run production",
+    "a disaster recovery plan that was never tested does not exist",
+    "a backup nobody ever restored is not a backup",
+    "DevSecOps reduced to a CI scanner spitting out 400 alerts nobody reads",
+    "replying RTFM to a newcomer when the docs don't exist is hazing, not high standards",
+    "you master YAML but can't explain TCP versus UDP: networking, the blind spot of DevOps",
+    "AI won't kill developers, but it can kill juniors if we stop training them",
+]
 
-    # === DEVOPS / IaC / CLOUD (evergreen fallback) ===
-    "Docker Swarm vs Kubernetes: from real experience, when one is genuinely better than the other",
-    "secure CI/CD: 3 practices you apply systematically to harden a GitLab pipeline",
-    "GitOps with ArgoCD: real feedback after a production deployment",
-    "Terraform in teams: the state file mistakes that hurt and how to avoid them",
-    "IaC drift: how to detect and correct gaps between your code and production",
-    "designing for failure: the resilience patterns you bake in from day one, not in a crisis",
-    "multi-cloud: the real reasons it's usually a bad idea dressed up as strategy",
+# FIELD topics: your legitimacy. Useful, but the reader sees themselves in them less. Real engagements only.
+TOPICS_FIELD = [
+    "what 10 years of client engagements taught you that DevOps certifications never will",
+    "most incidents last too long because of the diagnosis, not the outage",
+    "containerizing an existing infrastructure: what teams always underestimate",
+    "GitOps with ArgoCD: what really changes for the team, beyond the tool",
+    "Terraform in a team: the state file is a human problem before it is a technical one",
+]
 
-    # === CAREER / FREELANCE ===
+TOPICS_CAREER = [
     "why you went freelance and what you'd do differently if you started over",
     "what nobody tells you about freelancing in DevOps/Cloud: the real struggles and the real freedoms",
-    "how you vet a mission before signing: the questions you ask and the red flags you watch for",
+    "how you vet an engagement before signing: the questions you ask and the red flags you watch for",
     "billing for expertise vs billing for time: the mindset shift that changed everything",
 ]
+
+# News-style topics: they plateau far below the mirror format. Kept for variety, drawn rarely (weight 0 by default).
+TOPICS_LOW_REACH = [
+    "a recent hack or leak in the gaming industry: what it reveals about security in creative environments",
+    "supply chain attack: how one npm or PyPI package can compromise an entire infrastructure",
+    "zero trust in practice: what actually changes compared to the marketing pitch",
+]
+
+TOPICS = TOPICS_MIRROR + TOPICS_FIELD + TOPICS_CAREER
+
+# Themes that must not dominate your feed: (keywords, gap) = at most one post on the theme every `gap` posts.
+# Example: two hits in a row against Kubernetes started to look like a war against a tool the author actually loves.
+SPACED_THEMES = {
+    "orchestration": (("kubernetes", "k8s", "swarm", "compose", "helm", "service mesh", "istio", "cluster"), 5),
+}

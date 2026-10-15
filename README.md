@@ -6,86 +6,90 @@
 
 I got tired of the "I should post more" guilt loop. So I automated it.
 
-Twice a week, this script picks a topic, calls Claude, and either posts to LinkedIn directly or sends it to Discord for your approval. No UI, no brain required. Set it up once, manage it from your phone.
+Twice a week, this script picks a topic, writes a post in your voice with Claude, checks it for invented facts and
+AI tells, and publishes it to LinkedIn. A Discord bot handles the rest from your phone: approvals, reply drafts,
+comment drafts for other people's posts, and reminders for the first hour, when most of a post's reach is decided.
 
-Costs roughly $2-3/year to run.
+Costs a few dollars a year in API usage.
 
 ---
 
 ## Real results
 
-This isn't a theoretical pitch. Numbers below are from the account this agent was actually built for, running unattended for several months.
+Numbers from the account this agent was built for, running for several months:
 
 | | |
 |---|---|
-| Typical baseline before tuning the format | 100-300 impressions/post |
-| Best single post (a product announcement, unusually lucky topic) | 109,477 impressions · 650 likes · 50 reposts · 86 comments |
-| A repeatable good outcome once the personal/opinion format was dialed in | 9,204 impressions · 9 comments, single post, zero paid promotion |
-| Current baseline target after the fixes in this repo | 2,000-3,000 impressions/post |
+| Typical post before tuning the format | 100-300 impressions |
+| A post attacking a tool most companies adopted by imitation | 34,000 impressions · 25+ comments |
+| A post defending the simple option against the prestigious one | 30,000 impressions |
+| A post on what a job title really means in practice | 9,204 impressions · 9 comments |
+| News commentary and product posts, however well written | 100-300 impressions |
 
-Two mechanics moved the needle the most, both already built into `agent.py`:
+What made the difference was not the writing quality, it was one principle: **the mirror effect**. The reader has to
+recognize *their own* company, team or choice in the post and feel called out. A post about your project leaves them
+a spectator; a post about a choice their company made forces them to take a side, and comments are what carry a post
+beyond your network. The agent is built around that principle (see `PERFORMANCE` in `prompts.py`).
 
-1. **Alternating between news commentary and personal/opinion posts.** A "news analysis" post
-   makes you a commentator on someone else's event. A personal/opinion post, especially one
-   anchored to a real client or project, makes you the one with the experience. The second
-   gets far more comments, and comments are what carries a post beyond your own network.
-2. **Ending every post on a concrete, specific, easy-to-answer question.** Not "what do you
-   think?" (too vague, ignored). A question about the reader's own stack, team, or choices.
-   Posts that skip this consistently get zero comments regardless of writing quality.
-
-Don't expect the 109k outlier every time; that one benefited from a topic that was unusually
-timely. Expect the alternation and the closing question to reliably move you off a 150-impression
-floor, if you post consistently and reply to comments fast (see [Notes](#notes)).
+Don't expect every post to hit. Expect the floor to move, if you post consistently and reply to comments fast.
 
 ---
 
 ## How it works
 
-Each run follows two tiers, in order, alternating with the previous run so neither one
-monopolizes your feed:
+**Topic selection.** Topics live in weighted pools: *mirror* topics (a choice the reader's company probably made)
+are drawn most of the time, *field* and *career* topics add variety. Topics never covered come first. Themes you
+don't want to dominate your feed are spaced out (by default, at most one orchestration topic every 5 posts: two hits
+in a row against one tool start to look like a crusade).
 
-**1. Real news from this week**
-Searches DuckDuckGo News for an actual cybersecurity or gaming incident from the past 7 days. Generic explainers and off-topic results (sports, politics) are filtered out automatically. If a real incident is found, the post uses the "news analysis" format: main fact + key number → unexpected twist → macro thesis → memorable punchline → a closing question about the reader's own situation. The OG image from the source article is fetched automatically.
+**Writing.** Each post gets an opening shape drawn from 8 (a quote, a dry claim, a question, a number...), weighted by
+what worked and never one of the last three, so your posts don't become a visible recipe. Your two best-performing
+posts are passed as a reference for substance, never for wording. Real anecdotes come only from your **story bank**
+(`story_bank.md`, private, gitignored): without it, models invent experiences under your name.
 
-**News posts are never auto-published.** They go to `pending.md` + Discord for manual review. One click to publish, rewrite, change topic, or discard.
+**Checking.** Before anything is published:
+- a mechanical cleanup strips invisible characters, long dashes, curly quotes and the emojis that scream "generated";
+- a style lint flags AI tells (line 1 over 140 characters, "It's not X, it's Y", answered rhetorical questions, triads,
+  hashtag walls, the same emojis as last time) and has them rewritten;
+- a fact guard rewrites any anecdote attributed to a named client that is not in your facts, softens unverifiable
+  claims, and applies your tone rules (your current client only appears positively, past clients are never criticized);
+- line 1 is cut to survive the ~140-character mobile truncation.
 
-**2. Static topic list (personal/opinion angle)**
-Picks from your curated topic list, avoiding the last 5 used. This is where named clients, opinions, and career stories live, and it's the format that tends to reach further than news commentary or product posts. See [Real results](#real-results) above.
-
-If you'd rather write a specific idea yourself, drop it in `queue.md` and it takes priority over both tiers. See [Pre-writing posts](INSTALL.md#pre-writing-posts) in the install guide.
+**Publishing.** Posts go out through the official LinkedIn API, with a random 0-15 minute delay so they don't land
+at the same minute every week. Links always go in the first comment, never the body. News-based posts (off by
+default) are never auto-published: they wait for your approval.
 
 ---
 
-## Discord approval flow
+## The Discord bot
 
-The Discord bot watches `pending.md` every 30 seconds. When a news post is queued, it sends a full embed to your channel with 4 action buttons:
+| | |
+|---|---|
+| ✅ / 🔄 / 🔁 / 🗑️ buttons | Approve, rewrite, change topic or discard a post held for review |
+| Paste a comment from your post | 3 reply drafts in your voice, humanized (short, one point, no "Great question!") |
+| `!comment` + someone else's post | 2 comment drafts of different types, to exist under bigger accounts in your field |
+| `!stats` | Your latest posts and their numbers; `!stats 13817 25 77` records impressions, comments, reactions |
+| Automatic | 15 minutes before each slot: "warm up, comment on 3 posts". When a post goes live: "reply within the hour, don't edit for 3 hours" |
 
-| Button | Action |
-|--------|--------|
-| ✅ Publish | Posts to LinkedIn (with the link in a first comment, not the post body), saves to history, cleans up |
-| 🔄 Rewrite | Regenerates the post on the same topic, updates the embed |
-| 🔁 New topic | Discards current post, generates a completely different one |
-| 🗑️ Discard | Deletes `pending.md` without publishing |
-
-The same bot also drafts replies to comments you receive: paste a comment (text or screenshot) directly in the channel and it answers with 3 options in your voice, ready to copy and post yourself.
+The bot never posts anything on someone else's post: it drafts, you copy and post. That is deliberate: automating
+engagement on other people's content is against LinkedIn's terms and gets accounts restricted.
 
 ---
 
 ## Quick start
 
-Full step-by-step setup, including the LinkedIn app, OAuth token, Discord bot, `.env`, and cron job, lives in **[INSTALL.md](INSTALL.md)**.
-
-The short version:
+Full setup (LinkedIn app, OAuth token, Discord bot, story bank, cron) is in **[INSTALL.md](INSTALL.md)**.
 
 ```bash
 git clone https://github.com/Joopinhontas/linkedin-agent.git
 cd linkedin-agent
 pip install -r requirements.txt
 cp .env.example .env
-python oauth_helper.py        # follow INSTALL.md first to get your LinkedIn app credentials
+cp story_bank.example.md story_bank.md
+python oauth_helper.py        # after creating your LinkedIn app, see INSTALL.md
 ```
 
-Then edit `prompts.py` (this is the step that actually matters, see INSTALL.md), fill in `.env`, and schedule `agent.py` with cron.
+Then edit `prompts.py` (the step that actually matters), fill `story_bank.md`, and schedule `agent.py` with cron.
 
 ---
 
@@ -93,31 +97,34 @@ Then edit `prompts.py` (this is the step that actually matters, see INSTALL.md),
 
 ```
 linkedin-agent/
-├── agent.py          # main logic: topic selection, generation, publishing
-├── prompts.py        # system prompt and topics list, edit these
-├── discord_bot.py    # Discord bot: pending post approval + comment reply drafts
-├── oauth_helper.py   # one-time OAuth flow to get your access token
-├── post_now.py       # manual post or publish from pending.md
-├── queue.md          # optional: pre-written posts or ideas (gitignored)
-├── pending.md        # news post waiting for approval (gitignored)
-├── .env.example      # env template
-├── history.json      # post history (auto-created, gitignored)
-├── INSTALL.md         # full setup guide
-├── CHANGELOG.md       # version history
+├── agent.py                 # topic selection, writing, humanizer, fact guard, publishing
+├── prompts.py               # your identity, client facts, tone rules, topic pools: edit these
+├── discord_bot.py           # approvals, reply and comment drafts, stats, first-hour reminders
+├── post_now.py              # post on a topic now, or publish what is waiting in pending.md
+├── publish_scheduled.py     # publish a post you approved in advance, at a set time (one-off cron)
+├── oauth_helper.py          # one-time OAuth flow to get your access token
+├── story_bank.example.md    # template for your real experiences (copy to story_bank.md)
+├── .env.example             # env template
+├── INSTALL.md               # full setup guide
+├── CHANGELOG.md             # version history
 └── requirements.txt
 ```
+
+Private, gitignored: `.env`, `story_bank.md`, `history.json`, `pending.md`, `queue.md`, `published.json`.
 
 ---
 
 ## Notes
 
-- **The format fixes in this repo don't replace showing up.** Reply to comments within 15-20 minutes of posting: LinkedIn tests a post on a small batch first and decides whether to push it further based on early engagement. A great closing question nobody sees in time still gets zero replies.
-- `history.json` is gitignored. Don't delete it, it's how the agent avoids repeating itself and how the news/opinion alternation knows what ran last.
-- The model is `claude-opus-4-5`. You can swap it for `claude-haiku-4-5` to cut costs, though quality will drop noticeably.
-- DuckDuckGo source search is best-effort. If it fails, the post generates without sources.
-- Posts are in whatever language you set in your system prompt. The defaults are English but the agent writes in French, Spanish, or anything else if you tell it to.
-- If a queued post fails to publish, the entry is preserved in `queue.md` for the next run.
-- If `pending.md` already exists when the agent runs, it skips generation to avoid overwriting a post awaiting approval, and to avoid a wasted API call.
+- **Show up in the first hour.** LinkedIn tests a post on a small batch and decides in roughly 60-90 minutes whether
+  to push it further. Reply to every comment fast. Don't edit the text for 3 hours: a big edit restarts distribution.
+- **Don't build an engagement pod.** The same people liking at the same minute every week is a pattern LinkedIn
+  detects, with heavy reach penalties. Let reactions come naturally.
+- **Fill the story bank.** A precise number with its context is the strongest signal that a human wrote the post,
+  and a failure told honestly beats a polished success. The agent can only tell what is in the file.
+- **Renew your token.** LinkedIn tokens last about 60 days: rerun `oauth_helper.py` before it expires.
+- The model is `claude-opus-4-5`; `claude-haiku-4-5` cuts costs at a noticeable quality loss.
+- `history.json` is how the agent avoids repeating itself and learns your best posts: don't delete it.
 
 ---
 
@@ -125,8 +132,15 @@ linkedin-agent/
 
 - Python 3.10+
 - A LinkedIn account with a developer app (free)
-- An Anthropic API key (~$2-3/year in usage)
-- A Discord bot token (free), optional, for the approval flow and comment drafting
+- An Anthropic API key
+- A Discord bot token (free), optional but recommended
+
+## Credits
+
+The humanizer and the comment types are adapted from
+[Jakeschincariol/linkedin-agent-skill](https://github.com/Jakeschincariol/linkedin-agent-skill) (MIT). Several
+format heuristics (hashtags, save weight, first-hour window) come from the 2026 data compiled in
+[sergebulaev/linkedin-skills](https://github.com/sergebulaev/linkedin-skills) (MIT).
 
 ## License
 

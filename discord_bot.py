@@ -33,6 +33,8 @@ PENDING_FILE = Path("pending.md")
 BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN", "")
 CHANNEL_ID = int(os.getenv("DISCORD_CHANNEL_ID", "0"))
 POLL_INTERVAL = 30  # seconds
+# Warm-up reminder times, 15 minutes before your cron slots: {weekday (0 = Monday): (hour, minute)}.
+REMINDER_SLOTS = {0: (8, 45), 2: (9, 45)}
 
 
 # ---------------------------------------------------------------------------
@@ -59,6 +61,17 @@ def parse_pending():
         if c.exists():
             image_path = c
     return topic, image_path, post_text
+
+
+def pending_first_comment() -> str | None:
+    """Optional `COMMENT:` header line in pending.md: published as the first comment (e.g. a link)."""
+    if not PENDING_FILE.exists():
+        return None
+    header = PENDING_FILE.read_text(encoding="utf-8").split("---\n\n", 1)[0]
+    for line in header.splitlines():
+        if line.startswith("COMMENT:"):
+            return line.replace("COMMENT:", "", 1).strip() or None
+    return None
 
 
 def save_pending(topic: str, image_path, post_text: str):
@@ -161,6 +174,95 @@ def generate_comment_replies(comment_text: str, image_blocks: list) -> list[str]
     return variants[:3]
 
 
+def record_stats(text: str) -> str:
+    """`!stats`: list the latest posts and their numbers.
+    `!stats <impressions> [comments] [reactions]`: numbers for the latest post.
+    `!stats #2 <impressions> ...`: numbers for the one before (#1 = latest)."""
+    import json
+    from agent import load_history
+    history = load_history()
+    if not history:
+        return "No post in the history yet."
+    args = text.split()[1:]
+    if not args:
+        lines = []
+        for i, h in enumerate(reversed(history[-5:]), 1):
+            first = h["post"].strip().splitlines()[0][:70]
+            m = f"{h['impressions']} imp. · {h.get('comments', '?')} com." if h.get("impressions") else "no numbers yet"
+            if h.get("impressions") and h.get("reactions") is not None and h.get("comments") is not None:
+                m += f" · engagement {(h['reactions'] + h['comments']) / h['impressions'] * 100:.1f} %"
+            lines.append(f"#{i} ({h['date'][:10]}) {m}\n> {first}")
+        return "📊 Latest posts (reply `!stats #n impressions comments reactions`):\n" + "\n".join(lines)
+    idx = 1
+    if args[0].startswith("#"):
+        try:
+            idx = int(args.pop(0)[1:])
+        except ValueError:
+            return "Format: `!stats #2 13817 25 77`"
+    try:
+        nums = [int(a.replace(" ", "").replace(".", "").replace(",", "")) for a in args]
+    except ValueError:
+        return "Format: `!stats 13817 25 77` (impressions, comments, reactions)"
+    if not nums or not 1 <= idx <= len(history):
+        return "Format: `!stats 13817 25 77` (impressions, comments, reactions)"
+    entry = history[-idx]
+    for key, val in zip(("impressions", "comments", "reactions"), nums):
+        entry[key] = val
+    Path("history.json").write_text(json.dumps(history, ensure_ascii=False, indent=2))
+    return f"✅ Numbers saved ({entry['date'][:10]}): {entry['impressions']} impressions. Your best posts become the reference for the next ones."
+
+
+# `!comment <someone else's post>`: drafts for commenting on other people's posts (adapted from the li-comment skill,
+# MIT, Jakeschincariol/linkedin-agent-skill). Commenting on bigger accounts in your field is one of the strongest
+# follower levers. You still pick one and post it yourself.
+OUTBOUND_PROMPT = """You are [YOUR FULL NAME], [YOUR JOB TITLE]. You comment on SOMEONE ELSE's LinkedIn post to exist
+in your field: the comment must be useful enough that the post's readers click through to your profile.
+
+What you really did (the only basis allowed when you mention your experience):
+{client_facts}
+
+Pick the type that fits the post (never the same one by default):
+1. Add a datum: support a claim with a concrete fact.
+2. Add the missing case: "This holds until... After that, ..."
+3. Respectful disagreement: real agreement first, then the fork.
+4. Extend one line: quote THE good sentence and build on it.
+5. The real question: the one the post dodged, precise.
+6. The receipt: you did what they describe, what happened, in two sentences (no invented number or incident).
+7. The reframe: "Another way to read this: ..."
+
+RULES:
+- 2 to 4 sentences. Longer reads as a hijack. Shorter reads as filler.
+- Never "Great post", "So true", "Thanks for sharing", "I agree", nor the author's first name followed by "!".
+- No emoji as first character, no long dash, no hashtag, no link.
+- Don't restate the post. One idea. The comment must not fit under ANY other post.
+- Mirror the register and the language of the post.
+- No self-promotion.
+
+STRICT OUTPUT: exactly 2 comments of different types, each preceded by a line "[type name]", separated by a line
+containing only "---". No other text."""
+
+
+def generate_outbound_comments(post_text: str, image_blocks: list) -> list[str]:
+    """2 comment drafts for someone else's post. You choose and post it yourself."""
+    from agent import client, clean_text
+    from prompts import CLIENT_FACTS
+
+    content: list = []
+    if post_text:
+        content.append({"type": "text", "text": f"Post to comment on:\n{post_text}"})
+    content.extend(image_blocks)
+    if image_blocks and not post_text:
+        content.append({"type": "text", "text": "The post to comment on is in the screenshot above."})
+    message = client.messages.create(
+        model="claude-opus-4-5",
+        max_tokens=700,
+        temperature=0.8,
+        system=OUTBOUND_PROMPT.format(client_facts=CLIENT_FACTS),
+        messages=[{"role": "user", "content": content}],
+    )
+    return [clean_text(v.strip()) for v in message.content[0].text.split("---") if v.strip()][:2]
+
+
 def build_embed(topic: str, post_text: str) -> discord.Embed:
     desc = post_text if len(post_text) <= 4096 else post_text[:4090] + "\n..."
     embed = discord.Embed(
@@ -195,7 +297,7 @@ class PostView(ui.View):
         from agent import publish_to_linkedin, save_to_history
         loop = asyncio.get_running_loop()
         success = await loop.run_in_executor(
-            None, functools.partial(publish_to_linkedin, post_text, image_path)
+            None, functools.partial(publish_to_linkedin, post_text, image_path, pending_first_comment())
         )
 
         if success:
@@ -328,6 +430,10 @@ class LinkedInBot(discord.Client):
             return
 
         text = message.content.strip()
+
+        if text.lower().startswith("!stats"):
+            await message.channel.send(record_stats(text))
+            return
         image_blocks = []
         for att in message.attachments:
             if att.content_type and att.content_type.startswith("image/"):
@@ -341,6 +447,26 @@ class LinkedInBot(discord.Client):
                         "data": base64.b64encode(data).decode(),
                     },
                 })
+
+        # `!comment <someone else's post>` (or a screenshot): drafts to post yourself under another account's post.
+        if text.lower().startswith("!comment"):
+            outbound = text[len("!comment"):].strip(" :\n")
+            if not outbound and not image_blocks:
+                await message.channel.send("Paste the post text (or a screenshot) after `!comment`.")
+                return
+            async with message.channel.typing():
+                loop = asyncio.get_running_loop()
+                try:
+                    options = await loop.run_in_executor(
+                        None, functools.partial(generate_outbound_comments, outbound, image_blocks)
+                    )
+                except Exception as e:
+                    await message.channel.send(f"❌ Generation error: {e}")
+                    return
+            await message.channel.send("💬 2 comment options for this post (copy one, post it yourself):")
+            for o in options:
+                await message.channel.send(o)
+            return
 
         # channel.send everywhere: message.reply needs the "Read Message History"
         # permission, which the bot may not have in the channel.
@@ -366,6 +492,35 @@ class LinkedInBot(discord.Client):
         for v in variants:
             await message.channel.send(v)
 
+    async def _growth_reminders(self, channel):
+        """Launch-window reminders: the algorithm decides most of a post's reach in its first 60-90 minutes.
+        Warm-up 15 minutes before each cron slot (comment on other posts), then fast replies once it is live."""
+        import json
+        from datetime import datetime
+        now = datetime.now()
+        state_file = Path("reminders.json")
+        state = json.loads(state_file.read_text()) if state_file.exists() else {}
+        today = now.strftime("%Y-%m-%d")
+        slot = REMINDER_SLOTS.get(now.weekday())
+        if slot and (now.hour, now.minute) >= slot and now.hour == slot[0] and state.get("warmup") != today \
+                and not PENDING_FILE.exists():
+            await channel.send(
+                "⏰ Your post goes out in 15 to 30 minutes. Warm up the account: comment on 3 posts from your field "
+                "(paste them here with `!comment`). Vary the people from week to week."
+            )
+            state["warmup"] = today
+        notice = Path("published.json")
+        if notice.exists():
+            data = json.loads(notice.read_text(encoding="utf-8"))
+            if state.get("published") != data.get("at"):
+                await channel.send(
+                    f"📣 Post is live: \"{data.get('first', '')[:120]}\"\n"
+                    "The next 60 to 90 minutes decide most of its reach: reply to every comment (paste them here "
+                    "for drafts). Don't edit the text for 3 hours: a big edit restarts distribution from zero."
+                )
+                state["published"] = data.get("at")
+        state_file.write_text(json.dumps(state))
+
     async def _watch_pending(self):
         await self.wait_until_ready()
         channel = self.get_channel(CHANNEL_ID)
@@ -376,6 +531,10 @@ class LinkedInBot(discord.Client):
         DISCORD_MAX_FILE_BYTES = 8 * 1024 * 1024  # limit on a non-boosted server
 
         while not self.is_closed():
+            try:
+                await self._growth_reminders(channel)
+            except Exception as e:
+                print(f"[reminders] {e}")
             try:
                 if PENDING_FILE.exists():
                     mtime = PENDING_FILE.stat().st_mtime

@@ -10,7 +10,8 @@ import os
 import random
 import re
 
-from prompts import SYSTEM_PROMPT, TOPICS
+from prompts import (SYSTEM_PROMPT, TOPICS, TOPICS_MIRROR, TOPICS_FIELD, TOPICS_CAREER, TOPICS_LOW_REACH,
+                     CLIENT_FACTS, CURRENT_CLIENTS, PAST_CLIENTS, SPACED_THEMES)
 
 load_dotenv()
 
@@ -26,13 +27,12 @@ def load_history():
     return json.loads(p.read_text())
 
 
-def save_to_history(post: str, topic: str):
+def save_to_history(post: str, topic: str, hook: str | None = None):
     history = load_history()
-    history.append({
-        "date": datetime.now().isoformat(),
-        "topic": topic,
-        "post": post
-    })
+    entry = {"date": datetime.now().isoformat(), "topic": topic, "post": post}
+    if hook:
+        entry["hook"] = hook
+    history.append(entry)
     Path("history.json").write_text(json.dumps(history, ensure_ascii=False, indent=2))
 
 
@@ -88,30 +88,158 @@ def fetch_trending_topic() -> str | None:
     return None
 
 
+# News analysis is off by default: on the account this agent was built for, identity and opinion posts
+# reached 30x to 100x more people than news commentary. fetch_trending_topic() stays available.
+NEWS_ENABLED = False
+
+# Topic pools and how often each is drawn. "mirror" topics attack a choice or a label the reader's own
+# company has probably adopted (the format of the 30,000+ impression posts, see PERFORMANCE in prompts.py).
+TOPIC_POOLS = [("mirror", 0.85), ("field", 0.10), ("career", 0.05), ("low", 0.0)]
+
+
+def is_spaced(topic: str, keywords: tuple) -> bool:
+    low = topic.lower()
+    return any(k in low for k in keywords)
+
+
 def pick_topic(history: list) -> str:
-    # News vs. personal/opinion alternation: a "news analysis" post positions you as a
-    # commentator on someone else's event. A personal/opinion/named-client post positions
-    # you as someone with real experience. The second gets far more comments (and reach).
-    # Without forced alternation, fetch_trending_topic() almost always finds something,
-    # and the personal topics in TOPICS never get a chance to run.
-    weekly_history = [h for h in history if h["topic"] != "queued_post"]
-    last_was_news = bool(weekly_history) and weekly_history[-1]["topic"].startswith("this week's news")
+    if NEWS_ENABLED:
+        news_history = [h for h in history if h["topic"] != "queued_post"]
+        last_was_news = bool(news_history) and news_history[-1]["topic"].startswith("this week's news")
+        if not last_was_news:
+            trending = fetch_trending_topic()
+            if trending:
+                return trending
 
-    if not last_was_news:
-        trending = fetch_trending_topic()
-        if trending:
-            return trending
-    else:
-        print("[Topic] Forcing a personal/opinion week (news was published last time)")
+    names, weights = zip(*TOPIC_POOLS)
+    name = random.choices(names, weights=weights)[0]
+    pool = {"mirror": TOPICS_MIRROR, "field": TOPICS_FIELD, "career": TOPICS_CAREER, "low": TOPICS_LOW_REACH}[name] or TOPICS_MIRROR
+    # Themes that must not dominate the feed (see SPACED_THEMES in prompts.py): at most one post per theme
+    # every `gap` posts, so you don't become "the person who is always against X".
+    for keywords, gap in SPACED_THEMES.values():
+        if any(is_spaced(h["topic"], keywords) for h in history[-gap:]):
+            pool = [t for t in pool if not is_spaced(t, keywords)] or pool
+    # A topic never covered first, otherwise the least recently used one.
+    last_used = {h["topic"]: i for i, h in enumerate(history)}
+    never_used = [t for t in pool if t not in last_used]
+    if never_used:
+        return random.choice(never_used)
+    return min(pool, key=lambda t: last_used[t])
 
-    # Fallback / personal week: static list
-    print("[Topic] Picking a personal/opinion topic from the static list")
-    used_recently = [h["topic"] for h in history[-5:]]
-    available = [t for t in TOPICS if t not in used_recently]
-    if not available:
-        last = history[-1]["topic"] if history else None
-        available = [t for t in TOPICS if t != last]
-    return random.choice(available)
+
+# --- Humanizer (adapted from the li-human skill, MIT, Jakeschincariol/linkedin-agent-skill) ---
+INVISIBLE = re.compile("[\u200b-\u200f\u2060-\u2064\u00ad\ufeff\U000e0000-\U000e007f]")
+TYPO = [("\u00a0", " "), ("\u202f", " "), ("\u2009", " "), ("\u201c", '"'), ("\u201d", '"'),
+        ("\u2018", "'"), ("\u2019", "'"), ("\u2026", "..."), (" \u2014 ", ", "), ("\u2014", ", "),
+        (" \u2013 ", ", "), ("\u2013", "-"), ("\u2022", "-")]
+BANNED_EMOJI = ("\U0001F680", "\U0001F525", "\u2728")  # rocket, fire, sparkles
+EMOJI_RE = re.compile(r"[\U0001F300-\U0001FAFF\u2600-\u27BF]\ufe0f?")
+
+
+def clean_text(post: str) -> str:
+    """Mechanical cleanup: invisible characters, long dashes, curly quotes, non-breaking spaces."""
+    post = INVISIBLE.sub("", post)
+    for a, b in TYPO:
+        post = post.replace(a, b)
+    for e in BANNED_EMOJI:
+        post = post.replace(e + " ", "").replace(e, "")
+    return re.sub(r",\s*,", ",", post)
+
+
+def dedupe_emojis(post: str, history: list) -> str:
+    """Same emoji sequence as the previous post: strip them (too visible a signature from post to post)."""
+    if not history:
+        return post
+    prev = EMOJI_RE.findall(history[-1].get("post", ""))
+    cur = EMOJI_RE.findall(post)
+    if len(cur) >= 2 and cur[:2] == prev[:2]:
+        post = re.sub(r"(?m)^" + EMOJI_RE.pattern + r"\s*", "", post)
+    return post
+
+
+def fit_first_line(post: str, limit: int = 140) -> str:
+    """Mobile truncates around 140 characters before "see more": keep line 1 under it by isolating sentences."""
+    lines = post.split("\n")
+    if not lines or len(lines[0]) <= limit:
+        return post
+    sentences = re.split(r"(?<=[.!?])\s+", lines[0].strip())
+    head = sentences[0]
+    i = 1
+    while i < len(sentences) and len(head) + 1 + len(sentences[i]) <= limit:
+        head += " " + sentences[i]
+        i += 1
+    if len(head) > limit or i == len(sentences):
+        return post  # the first sentence alone is too long: left to the reviewer
+    return "\n".join([head, "", " ".join(sentences[i:])] + lines[1:])
+
+
+def style_flags(post: str, history: list | None = None) -> list[str]:
+    """Tells of generated text, handed to the reviewer for a rewrite (no destructive regex)."""
+    flags = []
+    first = post.strip().splitlines()[0] if post.strip() else ""
+    if len(first) > 140:
+        flags.append(f"Line 1 is {len(first)} characters: bring it under 140 without losing its meaning.")
+    rhetorical = re.findall(r"(?:^|[.!\n]\s*)(?:\S+\s){0,4}\S+\s?\?\s+[A-ZÀ-Ý]", post)
+    if len(rhetorical) > 1:
+        flags.append(f"{len(rhetorical)} short rhetorical questions answered right away ('The result? ...'): keep one at most.")
+    not_x = len(re.findall(r"(?i)\b(?:it's not|it is not|ce n'est pas)\b[^.]{0,80}\b(?:it's|it is|c'est)\b", post))
+    if not_x > 1:
+        flags.append("Several 'It's not X, it's Y' constructions: keep one at most.")
+    if len(re.findall(r"(?m)^(?:(?:No|Pas de) [^.]+\.\s*){3}", post)) > 1:
+        flags.append("Several 'No X. No Y. No Z.' triads: keep one at most.")
+    if re.search(r"\S - \S", post):
+        flags.append("A spaced hyphen ' - ' is used as a long dash mid-sentence: use a colon or a comma.")
+    tags = re.findall(r"#\w+", post)
+    if len(tags) > 2:
+        flags.append(f"{len(tags)} hashtags: keep 2 niche ones at most.")
+    if history:
+        prev = EMOJI_RE.findall(history[-1].get("post", ""))
+        cur = EMOJI_RE.findall(post)
+        if len(cur) >= 3 and cur[:3] == prev[:3]:
+            flags.append("Same emojis as the previous post, in the same order: change or remove them.")
+    return flags
+
+
+STORY_BANK_FILE = Path(__file__).parent / "story_bank.md"
+
+
+def story_bank() -> str:
+    """Your real experiences (private file, gitignored). Only lines starting with "- " count as entries."""
+    if not STORY_BANK_FILE.exists():
+        return ""
+    return "\n".join(l for l in STORY_BANK_FILE.read_text(encoding="utf-8").splitlines() if l.startswith("- "))
+
+
+def best_posts(history: list, n: int = 2) -> list:
+    """Your most-viewed posts (impressions recorded with the Discord `!stats` command), used as a reference."""
+    own = [h for h in history if h.get("impressions") and not h["topic"].startswith("this week's news")]
+    return sorted(own, key=lambda h: h["impressions"], reverse=True)[:n]
+
+
+# Opening shapes, drawn at random, weighted by what worked, never one of the last 3 used: two posts that work
+# must not end up looking alike (a visible recipe). Every shape targets the reader or their company.
+HOOK_STYLES = {
+    "label": "Open with 'Unpopular opinion:' followed by a short claim aimed straight at the reader's company (\"... for your company\"). Used rarely, it keeps its punch.",
+    "claim": "Open with a dry claim under 12 words, no label, contradicting what the reader's company probably did.",
+    "quote": "Open with a line in quotes that everyone has heard at work (plausible, mundane, revealing), then take it apart.",
+    "question": "Open with a direct question about the reader's own company, one they would rather not answer honestly.",
+    "blacklist": "Open by listing 2 or 3 things every company does or recommends, then break the rhythm with one sentence saying why it's wrong.",
+    "number": "Open with a raw number alone on its line (sourced, or presented as your field estimate) that concerns the reader's company.",
+    "comparison": "Open with an everyday comparison outside tech (cooking, sport, music, games) that sums up in one line the mistake most companies make.",
+    "confession": "Open with a mistake you made too, then turn it quickly toward the reader: \"and your company is probably making it right now\".",
+}
+HOOK_WEIGHTS = {"label": 3, "claim": 3, "quote": 2, "question": 2, "blacklist": 2, "number": 1, "comparison": 1, "confession": 1}
+LABEL_GAP = 6  # "Unpopular opinion:" at most once every 6 posts
+
+
+def pick_hook(history: list) -> str:
+    recent = [h.get("hook") for h in history[-3:] if h.get("hook")]
+    available = [k for k in HOOK_STYLES if k not in recent]
+    if any(h.get("hook") == "label" or h.get("post", "").lstrip().lower().startswith(("unpopular opinion", "opinion impopulaire"))
+           for h in history[-LABEL_GAP:]):
+        available = [k for k in available if k != "label"]
+    available = available or ["claim"]
+    return random.choices(available, weights=[HOOK_WEIGHTS[k] for k in available])[0]
 
 
 @functools.lru_cache(maxsize=16)
@@ -222,8 +350,22 @@ def upload_image_to_linkedin(image_bytes: bytes, mime_type: str, token: str, urn
     return asset_urn
 
 
-def generate_post(topic: str, history: list) -> str:
+def generate_post(topic: str, history: list, hook: str | None = None) -> str:
     recent = "\n".join([f"- {h['post'][:80]}..." for h in history[-3:]]) or "None"
+    hook = hook or pick_hook(history)
+    stories = story_bank()
+    story_block = ("STORY BANK (your real experiences, the only ones you may tell as an anecdote; use ONE at most, "
+                   "only if it truly serves the topic):\n" + stories + "\n") if stories else ""
+    best = best_posts(history)
+    best_block = ""
+    if best:
+        best_block = ("YOUR BEST-PERFORMING POSTS (reference for SUBSTANCE: level of conviction, field anchoring, a closing "
+                      "question that forces a side). Reuse NONE of their sentences, openings or structure:\n"
+                      + "\n".join(f"--- {h['impressions']} impressions, {h.get('comments', '?')} comments ---\n{h['post']}" for h in best)
+                      + "\n")
+    recent_openers = "\n".join(
+        f"- {h['post'].strip().splitlines()[0][:120]}" for h in history[-6:] if h.get("post", "").strip()
+    ) or "None"
 
     topics_with_sources = [
         "CVE", "ransomware", "pipeline", "CI/CD", "Kubernetes", "Docker",
@@ -249,13 +391,12 @@ def generate_post(topic: str, history: list) -> str:
         format_instruction = """
 You MUST use the "news analysis" format:
 1. Main fact + key number as the hook
-2. "The twist?" - the unexpected angle most people missed
+2. "The twist?": the unexpected angle most people missed
 3. 2-3 bullet points of macro thesis (what this really says about the industry, not just the isolated fact)
 4. Memorable closing punchline: a smart, humorous line or a realistic-but-absurd projection
 5. MANDATORY right after the punchline: an open, concrete question addressed to the reader
    about THEIR own situation (their company, their team, their stack), easy to answer in a
-   short comment. Without it, the post generates zero comments. No vague rhetorical question
-   like "what do you think?" - it must be specific to the topic just covered.
+   short comment. No vague rhetorical question like "what do you think?".
 No promotional CTA or link. Length: 300-420 words. Inline citations: (Reuters), (Bloomberg), (TechCrunch), etc."""
 
     message = client.messages.create(
@@ -273,10 +414,68 @@ Recent posts (don't repeat these):
 {sources_context}
 {format_instruction}
 
+{best_block}{story_block}
+OPENING FOR THIS POST (the shape is imposed, the substance is free): {HOOK_STYLES[hook]}
+First lines of your latest posts: reuse neither their wording, nor their structure, nor their first word.
+{recent_openers}
+Also vary the layout from one post to the next (paragraph length, emoji placement, with or without a lone
+sentence on its own line) so your posts don't read like a repeated recipe.
+
 Generate only the post text, ready to publish."""
         }]
     )
-    return message.content[0].text
+    draft = clean_text(message.content[0].text)
+    flags = style_flags(draft, history)
+    if flags:
+        print("[humanizer] " + " | ".join(flags))
+    return dedupe_emojis(fact_guard(draft, flags), history)
+
+
+def fact_guard(post: str, flags: list[str] | None = None) -> str:
+    """Second pass before publishing. Language models invent anecdotes and numbers about named clients even when told
+    not to, and personal posts go out without human review: this pass neutralizes them, fixes the style tells, and
+    applies your tone rules about current and past clients (CURRENT_CLIENTS / PAST_CLIENTS in prompts.py)."""
+    style_block = ""
+    if flags:
+        style_block = "Also fix these tells of generated writing, rewriting as little as possible:\n" + \
+            "\n".join(f"- {f}" for f in flags) + "\n"
+    named = ", ".join(CURRENT_CLIENTS + PAST_CLIENTS) or "(none listed)"
+    current = ", ".join(CURRENT_CLIENTS) or "(none)"
+    past = ", ".join(PAST_CLIENTS) or "(none)"
+    try:
+        msg = client.messages.create(
+            model="claude-opus-4-5",
+            max_tokens=1600,
+            temperature=0,
+            messages=[{"role": "user", "content": f"""You are proofreading a LinkedIn post before it is published under the author's name.
+
+Real facts allowed about the author's clients:
+{CLIENT_FACTS}
+Real experiences allowed (story bank, numbers included):
+{story_bank() or "(empty)"}
+
+Rule: any passage attributing to a NAMED client ({named}) an incident, a duration, a number, a decision, a project or
+an anecdote ABSENT from the facts above must be rewritten as an anonymous recurring pattern ("at a client", "what I
+often see", "across several missions"), keeping the idea and the rhythm. What matches the facts stays as is.
+{style_block}Tone rule on clients: the current engagement ({current}) appears ONLY positively (what the author brings).
+Any passage describing a conflict, a refusal or a disagreement in a context that could be the current engagement
+must be DELETED entirely, stitching the text back together ("at a client" is not enough: the client would recognize
+it). Past clients ({past}) are never criticized: rewrite any criticism as "before / after, thanks to me and the team".
+Also neutralize: any unsourced numeric comparison about a price or a bill (make it qualitative), and any precise,
+unverifiable technical claim about compatibility or integration between tools (remove it or make it cautious).
+Change nothing else: not the tone, not the structure, not the closing question, not the length.
+Never use an em dash or an en dash.
+
+Answer only with the final post, no commentary.
+
+POST:
+{post}"""}],
+        )
+        checked = msg.content[0].text.strip()
+        return fit_first_line(clean_text(checked if len(checked) > len(post) * 0.6 else post))
+    except Exception as e:
+        print(f"fact_guard skipped: {e}")
+        return fit_first_line(clean_text(post))
 
 
 def add_first_comment(post_urn: str, comment_text: str, token: str, actor_urn: str) -> bool:
@@ -355,6 +554,7 @@ def publish_to_linkedin(post_text: str, image_path: Path | None = None, first_co
 
 QUEUE_FILE = Path("queue.md")
 PENDING_FILE = Path("pending.md")
+PUBLISHED_NOTICE = Path("published.json")  # read by discord_bot.py: reminder of the first 60-90 minutes window
 
 
 def pop_queue() -> str | None:
@@ -422,9 +622,10 @@ Generate only the final post text, ready to publish."""
         return
 
     topic = pick_topic(history)
-    print(f"[{datetime.now()}] Generating about: {topic[:80]}...")
+    hook = pick_hook(history)
+    print(f"[{datetime.now()}] Generating about: {topic[:80]}... (opening: {hook})")
 
-    post = generate_post(topic, history)
+    post = generate_post(topic, history, hook)
     print(f"\n--- GENERATED POST ---\n{post}\n---")
 
     # News-based posts are never auto-published. Save it with the source article's
@@ -452,11 +653,18 @@ Generate only the final post text, ready to publish."""
 
     success = publish_to_linkedin(post)
     if success:
-        save_to_history(post, topic)
+        PUBLISHED_NOTICE.write_text(json.dumps({"at": datetime.now().isoformat(), "first": post.strip().splitlines()[0]}),
+                                    encoding="utf-8")
+        save_to_history(post, topic, hook)
         print("✓ Published to LinkedIn")
     else:
         print("✗ Publication failed")
 
 
 if __name__ == "__main__":
+    import sys
+    import time
+    if not sys.stdin.isatty():
+        # Started by cron: random 0-15 min delay, so posts don't go out at the exact same minute every week.
+        time.sleep(random.randint(0, 900))
     run()

@@ -1,4 +1,4 @@
-# post_now.py — post on demand with a custom topic, or approve a pending news post
+# post_now.py: post on demand with a custom topic, or approve a pending news post
 #
 # Usage:
 #   python post_now.py "your topic here"
@@ -22,11 +22,14 @@ def post_from_pending():
 
     topic = ""
     image_name = ""
+    first_comment = None
     for line in header.splitlines():
         if line.startswith("TOPIC:"):
             topic = line.replace("TOPIC:", "").strip()
         if line.startswith("IMAGE:"):
             image_name = line.replace("IMAGE:", "").strip()
+        if line.startswith("COMMENT:"):
+            first_comment = line.replace("COMMENT:", "", 1).strip() or None
 
     image_path = None
     if image_name:
@@ -40,7 +43,7 @@ def post_from_pending():
 
     confirm = input("\nPublish this post? (y/n): ")
     if confirm.lower() == "y":
-        success = publish_to_linkedin(post, image_path)
+        success = publish_to_linkedin(post, image_path, first_comment)
         if success:
             save_to_history(post, topic)
             PENDING_FILE.unlink()

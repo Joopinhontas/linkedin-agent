@@ -1,5 +1,36 @@
 # Changelog
 
+## [3.1.0] - 2026-10-15
+
+### Added
+- **Weighted topic pools** (`agent.py`, `prompts.py`): `TOPICS_MIRROR`, `TOPICS_FIELD`, `TOPICS_CAREER`,
+  `TOPICS_LOW_REACH`, drawn by `TOPIC_POOLS` weights. Never-covered topics come first, then the least recently used.
+  Mirror topics (a choice the reader's company probably made) produced the 30,000+ impression posts.
+- **Theme spacing** (`SPACED_THEMES`): at most one post on a given theme every N posts, so the account does not
+  turn into a crusade against one tool.
+- **Opening shapes** (`HOOK_STYLES`, `pick_hook`): 8 weighted shapes, never one of the last 3; the "Unpopular opinion:"
+  label is limited to once every 6 posts. The first lines of recent posts are passed so none gets reused.
+- **Best posts as reference** (`best_posts`): the two most-viewed posts are given for substance, never for wording.
+- **Story bank** (`story_bank.md`, gitignored, template in `story_bank.example.md`): the only source of anecdotes.
+- **Humanizer**: `clean_text` (invisible characters, long dashes, curly quotes, non-breaking spaces, rocket/fire/sparkles
+  emojis), `style_flags` (line 1 over 140 characters, "It's not X, it's Y", answered rhetorical questions, triads,
+  spaced hyphens used as dashes, more than 2 hashtags, same emojis as the previous post), `dedupe_emojis`,
+  `fit_first_line` (mobile truncation). Adapted from Jakeschincariol/linkedin-agent-skill (MIT).
+- **Fact guard** (`fact_guard`): second pass that rewrites anecdotes attributed to named clients but absent from
+  `CLIENT_FACTS` and the story bank, neutralizes unsourced price comparisons and unverifiable tool claims, fixes the
+  flagged style tells, and enforces `CURRENT_CLIENTS` / `PAST_CLIENTS` tone rules.
+- **Discord**: `!stats` (numbers per post, engagement rate), `!comment` (2 comment drafts for someone else's post),
+  first-hour reminders (warm-up before each slot, reply-fast notice when a post is live, via `published.json`),
+  optional `COMMENT:` header in `pending.md` published as the first comment.
+- **`publish_scheduled.py`**: publishes a pre-approved `scheduled_post.md` from a self-removing one-off cron entry.
+- Random 0-15 minute delay when started by cron, so posts don't go out at the same minute every week.
+
+### Changed
+- News analysis is off by default (`NEWS_ENABLED = False`): it plateaued at 100-300 impressions on the reference
+  account, against 9,000 to 34,000 for mirror posts. The alternation logic is kept behind the flag.
+- Format rules: 1,500 to 1,900 characters (measured on the best posts), 0 to 2 niche hashtags, 0 to 3 emojis.
+- Discord commands use a `!` prefix so a pasted comment starting with "Comment..." is not taken for a command.
+
 ## [3.0.0] - 2026-09-18
 
 ### Added
