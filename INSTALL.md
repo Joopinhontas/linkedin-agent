@@ -98,17 +98,38 @@ DISCORD_BOT_TOKEN=
 DISCORD_CHANNEL_ID=
 ```
 
-## 7. Customize your system prompt
+## 7. Customize `prompts.py` (the step that actually matters)
 
-Open `prompts.py` and rewrite `SYSTEM_PROMPT`. Replace every `[PLACEHOLDER]` with your actual information: your name, your domain, your real expertise, how you write, what you want to avoid.
+Open `prompts.py` and work through it top to bottom:
 
-**This is the step that actually matters.** The agent will sound like you if you describe yourself well here, and like every other AI LinkedIn account if you don't. Be specific. Mention real clients, real technologies, real opinions. Never let it invent a client, a number, or an incident you didn't actually experience: the `PERFORMANCE` rules already tell it to stick to real anchors, but the raw material has to come from you.
+- **`SYSTEM_PROMPT`**: replace every `[PLACEHOLDER]` with your name, domain, real expertise, how you write and the
+  language you post in. The agent sounds like you if you describe yourself well here, and like every other AI account
+  if you don't.
+- **`CLIENT_FACTS`**: what you *actually* did at each client (technologies, scope, role). It is the only basis on which
+  the agent may name a company. Without it, models invent anecdotes about real companies under your name.
+- **`CURRENT_CLIENTS` / `PAST_CLIENTS`**: tone rules enforced by the fact guard. Your current client only ever appears
+  positively (a conflict there is deleted, not anonymized: the client would recognize it). Past clients are never
+  criticized: the story becomes "before / after, thanks to me and the team".
+- **`PERFORMANCE`**: the principles behind the posts that worked. Replace the example numbers and the through-line
+  with yours as soon as you have data.
+- **Topic pools**: `TOPICS_MIRROR` (a choice the reader's company probably made: drawn most of the time),
+  `TOPICS_FIELD`, `TOPICS_CAREER`, `TOPICS_LOW_REACH`. Weights live in `TOPIC_POOLS` in `agent.py`. Aim for 30+
+  mirror topics from your own field.
+- **`SPACED_THEMES`**: themes that must not dominate your feed, with the minimum gap between two posts on them.
 
-Also edit `TOPICS`: aim for 30-50 entries, mixing evergreen technical topics with personal/opinion angles and named real clients or projects. The defaults are DevOps/Cloud/Security oriented, replace or extend them to match your field. See [Real results](README.md#real-results) in the README for why the personal/opinion entries matter as much as the technical ones.
+## 8. Fill your story bank
 
-Also update `COMMENT_SYSTEM_PROMPT` in `discord_bot.py` the same way if you plan to use the comment-drafting feature: it needs your identity and a real reply you once wrote, to calibrate your actual tone.
+```bash
+cp story_bank.example.md story_bank.md
+```
 
-## 8. Set up the cron job
+`story_bank.md` is gitignored: it holds your real career details. Write one line per experience, with real numbers
+and context: a receipt you can state without checking, something you shipped, a turning point, a mistake and what it
+cost you, an opinion your peers don't voice. The agent tells an anecdote only from this file; without an entry that
+fits, it stays on a typical scenario instead of inventing one. A good way to fill it: ask Claude to interview you,
+five questions at a time.
+
+## 9. Set up the cron job
 
 ```bash
 crontab -e
@@ -122,6 +143,35 @@ Add these two lines (adjust the path), one for each weekly slot:
 ```
 
 Monday 9am and Wednesday 10am, both running the same script: the news/opinion alternation in `pick_topic()` takes care of not repeating the same format twice in a row. [crontab.guru](https://crontab.guru) helps with the schedule syntax if you want a different cadence.
+
+## Discord commands
+
+- **Paste a comment** someone left on your post (text or screenshot): you get 3 reply drafts in your voice.
+- **`!comment`** followed by someone else's post (text or screenshot): 2 comment drafts of different types, to
+  post yourself under bigger accounts in your field. One of the best follower levers; vary the people you comment on.
+- **`!stats`**: your latest posts and their numbers. `!stats 13817 25 77` records impressions, comments and reactions
+  for the latest post; `!stats #2 ...` for the one before. Your two best posts become the reference for the next ones.
+- **Reminders** are automatic: 15 minutes before each cron slot, then when a post goes live. Set the warm-up times
+  in `REMINDER_SLOTS` (top of `discord_bot.py`) to match your cron entries.
+
+## Scheduling a specific post
+
+To publish a post you already approved at a precise time, write it to `scheduled_post.md`:
+
+```
+TOPIC: the exact topic line, so the rotation knows it was covered
+HOOK: claim
+
+---
+
+Your post text...
+```
+
+Then add a one-off cron entry tagged `# scheduled-post` (it removes itself after a successful run):
+
+```
+8 8 14 10 * cd /path/to/linkedin-agent && python publish_scheduled.py >> agent.log 2>&1 # scheduled-post
+```
 
 ## Manual post
 

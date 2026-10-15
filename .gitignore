@@ -5,3 +5,13 @@ __pycache__/
 *.pyc
 venv/
 .venv/
+story_bank.md
+story_bank_hold.md
+pending.md
+pending.jpg
+pending.png
+published.json
+reminders.json
+scheduled_post.md
+scheduled_post.published-*.md
+queue.md
